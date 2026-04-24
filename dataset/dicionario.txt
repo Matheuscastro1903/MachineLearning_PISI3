@@ -1,0 +1,50 @@
+DOCUMENTAÇÃO DO DATASET
+
+
+RESUMO GERAL:
+Total de Registros: 20.000 linhas
+Total de Colunas: 27
+Formato dos Dados: Numérico (float64/int64) e Categórico (object)
+
+
+1. RENDA E DADOS DEMOGRÁFICOS
+
+Income: Renda mensal total (float64)
+Age: Idade do indivíduo (int64)
+Dependents: Número de dependentes (int64)
+Occupation: Cargo ou profissão (object)
+City_Tier: Classificação da cidade (object)
+
+2. DESPESAS MENSAIS (Todos em float64)
+
+Rent: Gastos com moradia/aluguel
+Loan_Repayment: Pagamento de empréstimos e parcelas
+Insurance: Gastos com seguros
+Groceries: Despesas com supermercado e mantimentos
+Transport: Custos de locomoção e combustível
+Eating_Out: Gastos com restaurantes e delivery
+Entertainment: Lazer, streaming e eventos
+Utilities: Contas de consumo (Água, luz, internet)
+Healthcare: Despesas médicas e farmácia
+Education: Mensalidades e educação
+Miscellaneous: Gastos diversos não especificados
+
+3. METAS E INDICADORES (Todos em float64)
+
+Desired_Savings_Percentage: Meta de economia em porcentagem
+Desired_Savings: Valor nominal que se deseja economizar
+Disposable_Income: Renda líquida restante após despesas
+
+
+4. ECONOMIA POTENCIAL - POTENTIAL SAVINGS (Todos em float64)
+
+Potential_Savings_Groceries: Possível economia em mercado
+Potential_Savings_Transport: Possível economia em transporte
+Potential_Savings_Eating_Out: Possível economia em alimentação fora
+Potential_Savings_Entertainment: Possível economia em lazer
+Potential_Savings_Utilities: Possível economia em contas fixas
+Potential_Savings_Healthcare: Possível economia em saúde
+Potential_Savings_Education: Possível economia em educação
+Potential_Savings_Miscellaneous: Possível economia em diversos
+
+

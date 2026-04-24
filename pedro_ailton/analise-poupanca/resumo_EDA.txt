@@ -1,0 +1,22 @@
+Resumo da Análise Exploratória de Dados Financeiros de Pedro Ailton
+1. Qualidade e Estrutura dos Dados:
+
+Volume: O dataset data.csv contém 20.000 registros e 27 variáveis.
+Integridade: Foi realizada uma auditoria de qualidade que confirmou a ausência total de valores nulos (0%), garantindo uma base sólida para modelagem.
+2. Análise de Viabilidade Financeira:
+
+Saúde Financeira: Utilizando o método de Renda Disponível vs. Meta de Poupança, identificamos que apenas 0,56% da base possui metas financeiramente inviáveis.
+Correlação: Detectou-se uma forte correlação positiva (0,88) entre Income (Renda) e Disposable_Income (Renda Disponível), confirmando que o padrão de gastos essenciais escala proporcionalmente aos ganhos.
+3. Comportamento de Consumo e Economia Potencial:
+
+Oportunidade: A categoria de 'Supermercado' (Groceries) foi identificada como a de maior potencial médio de economia, sendo o foco principal para otimização financeira.
+Alimentação Fora: Contrariando o senso comum, os gastos com Eating_Out são uniformes entre as faixas etárias, embora o grupo de 18-25 anos apresente a maior média de gastos e, consequentemente, de economia potencial.
+4. Diagnóstico de Outliers (Método IQR):
+
+Habitação (Rent): Foram identificados 1.257 outliers totais no custo de aluguel, com maior incidência em cidades de Tier 2 (623 casos), indicando grande disparidade de custo de vida nessas regiões.
+Lazer (Eating_Out): Foram detectados 1.326 outliers em gastos com alimentação fora, liderados pela categoria Professional (358), sugerindo grupos com hábitos de consumo atípicos que podem necessitar de tratamento especial em modelos de Machine Learning.
+5. Conclusões para Modelagem (Insights de ML):
+
+Variáveis como Rent e Groceries são os melhores preditores de renda.
+Gastos fixos como Loan_Repayment e Insurance são os principais 'detratores' da saúde financeira.
+Existe multicolinearidade entre as colunas de Potential_Savings, sugerindo o uso futuro de técnicas como PCA ou Seleção de Features.
