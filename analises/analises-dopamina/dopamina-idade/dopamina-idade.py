@@ -28,7 +28,7 @@ from plotly import graph_objects as go
 
 def main() -> None:
 	base_dir = Path(__file__).resolve().parent
-	csv_path = base_dir / "../data.csv"
+	csv_path = base_dir / "../../../dataset/data.csv"
 
 	df = pd.read_csv(csv_path)
 
