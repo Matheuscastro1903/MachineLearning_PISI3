@@ -21,12 +21,20 @@ def load_and_preprocess_data():
     
     # Total Expenses = soma das colunas de despesas linha a linha
     df['Total_Expenses'] = df[expense_columns].sum(axis=1)
-    
+
     # Savings Rate = o quanto a pessoa guarda da própria renda
-    # Vamos usar (Income - Total_Expenses) / Income. Ou, usando a coluna Disposable_Income se preferir.
-    # Adicionando um pequeno valor na divisão para evitar divisão por zero, caso Income seja 0.
     df['Savings_Rate'] = (df['Income'] - df['Total_Expenses']) / df['Income'].replace(0, 1)
-    
+
+    # Waste Ratio (seção 5.1): % da renda gasta em itens evitáveis
+    waste_columns = ['Eating_Out', 'Entertainment', 'Miscellaneous']
+    df['Waste_Ratio'] = (df[waste_columns].sum(axis=1) / df['Income'].replace(0, 1)) * 100
+
+    # Faixa etária para análise da seção 5.1
+    # right=True → intervalos (17,30] (30,45] (45,60] (60,200]
+    bins   = [17, 30, 45, 60, 200]
+    labels = ['Jovem Adulto', 'Adulto', 'Sênior', 'Idoso']
+    df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=True)
+
     return df
 
 # Exportamos um DataFrame global limpo para ser usado na inicialização do App
