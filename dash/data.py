@@ -30,10 +30,23 @@ def load_and_preprocess_data():
     df['Waste_Ratio'] = (df[waste_columns].sum(axis=1) / df['Income'].replace(0, 1)) * 100
 
     # Faixa etária para análise da seção 5.1
-    # right=True → intervalos (17,30] (30,45] (45,60] (60,200]
     bins   = [17, 30, 45, 60, 200]
     labels = ['Jovem Adulto', 'Adulto', 'Sênior', 'Idoso']
     df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=True)
+
+    # Faixa etária 5 grupos para seção 5.3
+    bins5   = [17, 25, 35, 45, 55, 200]
+    labels5 = ['18-25', '26-35', '36-45', '46-55', '55+']
+    df['Age_Group_5'] = pd.cut(df['Age'], bins=bins5, labels=labels5, right=True)
+
+    # Gastos fixos e derivados para seção 5.3 / 5.6
+    fixed_cols = ['Rent', 'Loan_Repayment', 'Insurance']
+    df['Fixed_Costs']       = df[fixed_cols].sum(axis=1)
+    df['Fixed_Ratio']       = df['Fixed_Costs'] / df['Income'].replace(0, 1)
+    df['Disposable_Income'] = df['Income'] - df['Fixed_Costs']
+
+    # Rent como proporção da renda para seção 5.4
+    df['Rent_Income_Ratio'] = df['Rent'] / df['Income'].replace(0, 1)
 
     return df
 

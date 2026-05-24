@@ -1,36 +1,57 @@
 import dash
 from dash import dcc, html, Input, Output
 import pandas as pd
-import plotly.express as px
-from scipy.stats import kruskal
 
 from data import df_master
+from sections import s51, s52, s53, s54
 
-# Inicializando a aplicação Dash
 app = dash.Dash(__name__)
 
-# Pegando os valores únicos para popular os Dropdowns
 city_tiers = df_master['City_Tier'].unique().tolist()
 occupations = df_master['Occupation'].unique().tolist()
-min_income = df_master['Income'].min()
-max_income = df_master['Income'].max()
+min_income  = df_master['Income'].min()
+max_income  = df_master['Income'].max()
 
+# ── SIDEBAR ────────────────────────────────────────────────────────────────────
+# Cada nova seção: adicionar uma entrada em 'options' e um html.Div abaixo.
+sidebar = html.Div([
+    html.H3("Seções", style={'marginBottom': '16px'}),
+    dcc.RadioItems(
+        id='sidebar-nav',
+        options=[
+            {'label': '5.1 – Waste Ratio',    'value': 's51'},
+            {'label': '5.2 – Transporte',      'value': 's52'},
+            {'label': '5.3 – Condicionantes',   'value': 's53'},
+            {'label': '5.4 – Moradia',           'value': 's54'},
+        ],
+        value='s51',
+        labelStyle={'display': 'block', 'padding': '8px 12px', 'cursor': 'pointer'},
+        inputStyle={'marginRight': '8px'},
+    ),
+], style={
+    'width': '210px',
+    'minHeight': '80vh',
+    'backgroundColor': '#f4f4f4',
+    'padding': '16px',
+    'borderRight': '1px solid #ddd',
+    'flexShrink': '0',
+})
+
+# ── LAYOUT ─────────────────────────────────────────────────────────────────────
 app.layout = html.Div([
     html.H1("Dashboard Financeiro - Exploratória"),
-    
-    # Componente dcc.Store guarda os dados filtrados na memória do navegador do usuário
+
     dcc.Store(id='filtered-data-store'),
 
-    # Seção de Filtros (Nossa "Barra Lateral" ou Cabeçalho)
+    # Filtros globais
     html.Div([
         html.Label("Selecione o City Tier:"),
         dcc.Dropdown(
             id='filter-city',
             options=[{'label': city, 'value': city} for city in city_tiers],
-            multi=True, # Permite selecionar mais de um
+            multi=True,
             placeholder="Todos os Tiers"
         ),
-
         html.Label("Selecione a Ocupação:"),
         dcc.Dropdown(
             id='filter-occupation',
@@ -38,7 +59,6 @@ app.layout = html.Div([
             multi=True,
             placeholder="Todas as Ocupações"
         ),
-
         html.Label("Faixa de Renda (Income):"),
         dcc.RangeSlider(
             id='filter-income',
@@ -47,157 +67,78 @@ app.layout = html.Div([
             step=1000,
             marks={int(min_income): str(int(min_income)), int(max_income): str(int(max_income))},
             value=[min_income, max_income]
-        )
-    ], style={'padding': '20px', 'backgroundColor': '#f9f9f9', 'marginBottom': '20px'}),
-
-    # Placeholder para onde os gráficos entrarão depois
-    html.Div(id='debug-output', style={'padding': '20px', 'border': '1px solid #ccc'}),
-
-    html.Hr(),
-
-    # ── SEÇÃO 5.1 ──────────────────────────────────────────────────────────────
-    html.H2("5.1 – Waste Ratio por Variável Demográfica"),
-
-    html.Div([
-        html.Label("Agrupar por:"),
-        dcc.RadioItems(
-            id='s51-group-var',
-            options=[
-                {'label': ' Faixa Etária',         'value': 'Age_Group'},
-                {'label': ' Ocupação Profissional', 'value': 'Occupation'},
-                {'label': ' Nº de Dependentes',     'value': 'Dependents'},
-            ],
-            value='Age_Group',
-            inline=True,
-            inputStyle={'marginRight': '4px'},
-            labelStyle={'marginRight': '20px'},
         ),
-    ], style={'marginBottom': '15px'}),
+    ], style={'padding': '20px', 'backgroundColor': '#f9f9f9', 'marginBottom': '10px'}),
 
-    dcc.Graph(id='s51-violin'),
+    html.Div(id='debug-output', style={'padding': '10px 20px', 'borderBottom': '1px solid #ddd', 'marginBottom': '0'}),
 
-    html.Div(id='s51-kruskal', style={
-        'padding': '10px',
-        'border': '1px solid #ddd',
-        'borderRadius': '4px',
-        'marginTop': '8px',
-        'fontFamily': 'monospace',
-    }),
+    # Sidebar + conteúdo lado a lado
+    html.Div([
+        sidebar,
+
+        html.Div([
+            # ── cada seção fica em seu próprio Div com id único ──
+            # Para adicionar uma nova seção: html.Div(sXX.layout, id='section-sXX')
+            html.Div(s51.layout, id='section-s51'),
+            html.Div(s52.layout, id='section-s52'),
+            html.Div(s53.layout, id='section-s53'),
+            html.Div(s54.layout, id='section-s54'),
+        ], style={'flex': '1', 'padding': '24px', 'overflowY': 'auto'}),
+
+    ], style={'display': 'flex'}),
 ])
 
-# --- CALLBACK CENTRAL ---
-# O Callback "escuta" as mudanças nos filtros e atualiza o dcc.Store
+
+# ── CALLBACKS ──────────────────────────────────────────────────────────────────
 @app.callback(
     Output('filtered-data-store', 'data'),
-    [Input('filter-city', 'value'),
-     Input('filter-occupation', 'value'),
-     Input('filter-income', 'value')]
+    Input('filter-city',       'value'),
+    Input('filter-occupation', 'value'),
+    Input('filter-income',     'value'),
 )
 def update_store(selected_cities, selected_occupations, income_range):
-    # Começamos com uma cópia do dataframe completo
     dff = df_master.copy()
-    
-    # Filtro de Cidade
+
     if selected_cities:
         dff = dff[dff['City_Tier'].isin(selected_cities)]
-        
-    # Filtro de Ocupação
+
     if selected_occupations:
         dff = dff[dff['Occupation'].isin(selected_occupations)]
-        
-    # Filtro de Renda
+
     if income_range:
         dff = dff[(dff['Income'] >= income_range[0]) & (dff['Income'] <= income_range[1])]
-    
-    # O dcc.Store trafega dados no formato JSON. Convertemos o Pandas para um dicionário.
+
     return dff.to_dict('records')
 
-# Callback de Teste (Apenas para vermos se o Store está recebendo os dados corretamente)
+
 @app.callback(
     Output('debug-output', 'children'),
-    Input('filtered-data-store', 'data')
+    Input('filtered-data-store', 'data'),
 )
 def display_debug_info(stored_data):
     if not stored_data:
         return "Nenhum dado disponível."
-    
-    # Retorna quantas linhas sobraram após o filtro para testarmos na tela
-    return f"Dados filtrados com sucesso! O dataset atual possui {len(stored_data)} registros."
-
-AGE_ORDER = ['Jovem Adulto', 'Adulto', 'Sênior', 'Idoso']
-
-LABEL_MAP = {
-    'Age_Group':  'Faixa Etária',
-    'Occupation': 'Ocupação Profissional',
-    'Dependents': 'Nº de Dependentes',
-}
+    return f"Dados filtrados: {len(stored_data)} registros."
 
 
-# ── CALLBACK SEÇÃO 5.1 ────────────────────────────────────────────────────────
+# Mostra a seção selecionada, esconde as demais.
+# Para adicionar uma nova seção: Output('section-sXX', 'style') + lógica abaixo.
 @app.callback(
-    Output('s51-violin',  'figure'),
-    Output('s51-kruskal', 'children'),
-    Input('filtered-data-store', 'data'),
-    Input('s51-group-var', 'value'),
+    Output('section-s51', 'style'),
+    Output('section-s52', 'style'),
+    Output('section-s53', 'style'),
+    Output('section-s54', 'style'),
+    Input('sidebar-nav', 'value'),
 )
-def update_s51(stored_data, group_var):
-    if not stored_data:
-        return {}, "Nenhum dado disponível."
+def toggle_sections(selected):
+    sections = ['s51', 's52', 's53', 's54']
+    return tuple({} if selected == s else {'display': 'none'} for s in sections)
 
-    dff = pd.DataFrame(stored_data).dropna(subset=[group_var, 'Waste_Ratio']).copy()
 
-    # Ordem categórica e conversão por variável
-    if group_var == 'Age_Group':
-        dff[group_var] = pd.Categorical(dff[group_var], categories=AGE_ORDER, ordered=True)
-        cat_order = {group_var: AGE_ORDER}
-    elif group_var == 'Dependents':
-        dep_min = int(dff[group_var].min())
-        dep_max = int(dff[group_var].max())
-        dff[group_var] = dff[group_var].astype(int).astype(str)
-        dep_order = [str(i) for i in range(dep_min, dep_max + 1)]
-        cat_order = {group_var: dep_order}
-    else:
-        cat_order = {}
-
-    label_x = LABEL_MAP[group_var]
-
-    fig = px.violin(
-        dff,
-        x=group_var,
-        y='Waste_Ratio',
-        color=group_var,
-        box=True,
-        points='outliers',
-        labels={'Waste_Ratio': '% de Economia sobre a Renda', group_var: label_x},
-        category_orders=cat_order,
-    )
-    fig.update_layout(
-        showlegend=False,
-        height=420,
-        margin=dict(t=30, b=50, l=60, r=20),
-        yaxis_title='% de Economia sobre a Renda',
-        xaxis_title=label_x,
-    )
-
-    # Kruskal-Wallis
-    groups = [
-        g['Waste_Ratio'].values
-        for _, g in dff.groupby(group_var, observed=True)
-        if len(g) >= 2
-    ]
-    if len(groups) >= 2:
-        stat, pval = kruskal(*groups)
-        sig = pval < 0.05
-        conclusao = (
-            "Diferença estatisticamente significativa (p < 0,05)"
-            if sig else
-            "Sem diferença significativa (p ≥ 0,05)"
-        )
-        kruskal_text = f"Kruskal-Wallis   H = {stat:.4f}   p-valor = {pval:.4f}   →   {conclusao}"
-    else:
-        kruskal_text = "Grupos insuficientes para o teste."
-
-    return fig, kruskal_text
+s51.register_callbacks(app)
+s52.register_callbacks(app)
+s53.register_callbacks(app)
+s54.register_callbacks(app)
 
 
 if __name__ == '__main__':
