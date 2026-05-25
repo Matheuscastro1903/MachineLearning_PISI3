@@ -3,7 +3,7 @@ from dash import dcc, html, Input, Output
 import pandas as pd
 
 from data import df_master
-from sections import s51, s52, s53, s54
+from sections import s51, s52, s53, s54, s55
 
 app = dash.Dash(__name__)
 
@@ -23,6 +23,7 @@ sidebar = html.Div([
             {'label': '5.2 – Transporte',      'value': 's52'},
             {'label': '5.3 – Condicionantes',   'value': 's53'},
             {'label': '5.4 – Moradia',           'value': 's54'},
+            {'label': '5.5 – Cansaço/Dopamina', 'value': 's55'},
         ],
         value='s51',
         labelStyle={'display': 'block', 'padding': '8px 12px', 'cursor': 'pointer'},
@@ -75,15 +76,23 @@ app.layout = html.Div([
     # Sidebar + conteúdo lado a lado
     html.Div([
         sidebar,
-
-        html.Div([
-            # ── cada seção fica em seu próprio Div com id único ──
-            # Para adicionar uma nova seção: html.Div(sXX.layout, id='section-sXX')
-            html.Div(s51.layout, id='section-s51'),
-            html.Div(s52.layout, id='section-s52'),
-            html.Div(s53.layout, id='section-s53'),
-            html.Div(s54.layout, id='section-s54'),
-        ], style={'flex': '1', 'padding': '24px', 'overflowY': 'auto'}),
+        html.Div(
+            dcc.Loading(
+                type='dot',
+                color='#1f77b4',
+                fullscreen=False,
+                children=html.Div([
+                    # ── cada seção fica em seu próprio Div com id único ──
+                    # Para adicionar uma nova seção: html.Div(sXX.layout, id='section-sXX')
+                    html.Div(s51.layout, id='section-s51'),
+                    html.Div(s52.layout, id='section-s52'),
+                    html.Div(s53.layout, id='section-s53'),
+                    html.Div(s54.layout, id='section-s54'),
+                    html.Div(s55.layout, id='section-s55'),
+                ], style={'width': '100%', 'minWidth': '0', 'padding': '24px', 'overflowY': 'auto'}),
+            ),
+            style={'flex': '1', 'minWidth': '0'},
+        ),
 
     ], style={'display': 'flex'}),
 ])
@@ -128,10 +137,11 @@ def display_debug_info(stored_data):
     Output('section-s52', 'style'),
     Output('section-s53', 'style'),
     Output('section-s54', 'style'),
+    Output('section-s55', 'style'),
     Input('sidebar-nav', 'value'),
 )
 def toggle_sections(selected):
-    sections = ['s51', 's52', 's53', 's54']
+    sections = ['s51', 's52', 's53', 's54', 's55']
     return tuple({} if selected == s else {'display': 'none'} for s in sections)
 
 
@@ -139,7 +149,7 @@ s51.register_callbacks(app)
 s52.register_callbacks(app)
 s53.register_callbacks(app)
 s54.register_callbacks(app)
-
+s55.register_callbacks(app)
 
 if __name__ == '__main__':
     app.run(debug=True)
