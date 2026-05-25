@@ -26,16 +26,17 @@ sidebar = html.Div([
             {'label': '5.5 – Cansaço/Dopamina', 'value': 's55'},
         ],
         value='s51',
-        labelStyle={'display': 'block', 'padding': '8px 12px', 'cursor': 'pointer'},
-        inputStyle={'marginRight': '8px'},
+        labelStyle={'display': 'block', 'cursor': 'pointer'},
     ),
 ], style={
-    'width': '210px',
+    'flex': '1 1 0%',
+    'width': 'auto',
+    'minWidth': '0',
     'minHeight': '80vh',
     'backgroundColor': '#f4f4f4',
     'padding': '16px',
     'borderRight': '1px solid #ddd',
-    'flexShrink': '0',
+    'flexShrink': '1',
 })
 
 # ── LAYOUT ─────────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ app.layout = html.Div([
         ),
     ], style={'padding': '20px', 'backgroundColor': '#f9f9f9', 'marginBottom': '10px'}),
 
-    html.Div(id='debug-output', style={'padding': '10px 20px', 'borderBottom': '1px solid #ddd', 'marginBottom': '0'}),
+    html.Div(id='debug-output', style={'padding': '0px 20px', 'borderBottom': '1px solid #ddd', 'marginBottom': '0'}),
 
     # Sidebar + conteúdo lado a lado
     html.Div([
@@ -89,12 +90,19 @@ app.layout = html.Div([
                     html.Div(s53.layout, id='section-s53'),
                     html.Div(s54.layout, id='section-s54'),
                     html.Div(s55.layout, id='section-s55'),
-                ], style={'width': '100%', 'minWidth': '0', 'padding': '24px', 'overflowY': 'auto'}),
+                ], style={
+                    'width': '100%',
+                    'minWidth': '0',
+                    'padding': '24px',
+                    'boxSizing': 'border-box',
+                    'overflowY': 'auto',
+                    'overflowX': 'hidden',
+                }),
             ),
-            style={'flex': '1', 'minWidth': '0'},
+            style={'flex': '6 1 0%', 'minWidth': '0'},
         ),
 
-    ], style={'display': 'flex'}),
+    ], style={'display': 'flex', 'width': '100%'}),
 ])
 
 
