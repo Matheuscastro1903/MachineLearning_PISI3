@@ -1,1 +1,0 @@
-Essa pasta vai servir para o desenvolvimento do modelo de machine learning

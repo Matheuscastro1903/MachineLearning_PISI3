@@ -1,9 +1,8 @@
 import dash
 from dash import dcc, html, Input, Output
-import pandas as pd
 
 from data import df_master
-from sections import s51, s52, s53, s54, s55
+from sections import s51, s52, s53, s54, s55, s56_m1
 
 app = dash.Dash(__name__)
 
@@ -13,7 +12,6 @@ min_income  = df_master['Income'].min()
 max_income  = df_master['Income'].max()
 
 # ── SIDEBAR ────────────────────────────────────────────────────────────────────
-# Cada nova seção: adicionar uma entrada em 'options' e um html.Div abaixo.
 sidebar = html.Div([
     html.H3("Seções", style={'marginBottom': '16px'}),
     dcc.RadioItems(
@@ -24,6 +22,7 @@ sidebar = html.Div([
             {'label': '5.3 – Condicionantes',   'value': 's53'},
             {'label': '5.4 – Moradia',           'value': 's54'},
             {'label': '5.5 – Cansaço/Dopamina', 'value': 's55'},
+            {'label': 'M1  – Modelo de Vulnerabilidade', 'value': 's56'},
         ],
         value='s51',
         labelStyle={'display': 'block', 'cursor': 'pointer'},
@@ -90,6 +89,7 @@ app.layout = html.Div([
                     html.Div(s53.layout, id='section-s53'),
                     html.Div(s54.layout, id='section-s54'),
                     html.Div(s55.layout, id='section-s55'),
+                    html.Div(s56_m1.layout, id='section-s56'),
                 ], style={
                     'width': '100%',
                     'minWidth': '0',
@@ -104,7 +104,6 @@ app.layout = html.Div([
 
     ], style={'display': 'flex', 'width': '100%'}),
 ])
-
 
 # ── CALLBACKS ──────────────────────────────────────────────────────────────────
 @app.callback(
@@ -127,7 +126,6 @@ def update_store(selected_cities, selected_occupations, income_range):
 
     return dff.to_dict('records')
 
-
 @app.callback(
     Output('debug-output', 'children'),
     Input('filtered-data-store', 'data'),
@@ -137,27 +135,26 @@ def display_debug_info(stored_data):
         return "Nenhum dado disponível."
     return f"Dados filtrados: {len(stored_data)} registros."
 
-
 # Mostra a seção selecionada, esconde as demais.
-# Para adicionar uma nova seção: Output('section-sXX', 'style') + lógica abaixo.
 @app.callback(
     Output('section-s51', 'style'),
     Output('section-s52', 'style'),
     Output('section-s53', 'style'),
     Output('section-s54', 'style'),
     Output('section-s55', 'style'),
+    Output('section-s56', 'style'),
     Input('sidebar-nav', 'value'),
 )
 def toggle_sections(selected):
-    sections = ['s51', 's52', 's53', 's54', 's55']
+    sections = ['s51', 's52', 's53', 's54', 's55', 's56']
     return tuple({} if selected == s else {'display': 'none'} for s in sections)
-
 
 s51.register_callbacks(app)
 s52.register_callbacks(app)
 s53.register_callbacks(app)
 s54.register_callbacks(app)
 s55.register_callbacks(app)
+s56_m1.register_callbacks(app)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,16 +1,10 @@
 # ==============================================================================
 # MODELO DE PREVISÃO DE VULNERABILIDADE FINANCEIRA
-# Como usar: python previsao_vulnerabilidade.py
 #
 # REQUISITOS:
 #   - modelo_vulnerabilidade.pkl  (gerado no Jupyter)
 #   - scaler.pkl                  (gerado no Jupyter)
 #   - arquivo CSV ou parquet com os dados dos clientes
-#
-# COLUNAS NECESSÁRIAS NO ARQUIVO DE DADOS:
-#   Income, Age, Dependents, Loan_Repayment, Eating_Out,
-#   Entertainment, Healthcare, Rent, Groceries,
-#   Disposable_Income, Desired_Savings
 # ==============================================================================
 
 import pandas as pd
@@ -19,7 +13,7 @@ import os
 import sys
 
 # ==============================================================================
-# CONFIGURAÇÃO — ALTERE AQUI
+# CONFIGURAÇÃO
 # ==============================================================================
 
 CAMINHO_MODELO  = 'modelo_vulnerabilidade.pkl'   # ← modelo treinado
