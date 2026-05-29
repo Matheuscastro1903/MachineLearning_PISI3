@@ -1,12 +1,14 @@
 import dash
 from dash import dcc, html, Input, Output,ctx
 
+
 from data import df_master 
 from sections import s51, s52, s53, s54, s55, s56_m1
 
 
 from pages.home import tela_home
 from pages.documentacao import conteudo_docs
+from pages.analise import layout_eda,register_eda_callbacks
 
 
 
@@ -61,7 +63,7 @@ def mudar_pagina(b1, b2, b3, b4):
     if botao_clicado == 'btn-eda':
         # Aqui você retornaria o layout importado da sua página de EDA.
         # Exemplo: return eda_page.layout
-        return tela_home
+        return layout_eda
         
     elif botao_clicado == 'btn-ml':
         # Exemplo: return s56_m1.layout
@@ -73,6 +75,8 @@ def mudar_pagina(b1, b2, b3, b4):
     else:
         # Cai aqui se o botão Home for clicado OU quando o aplicativo acabar de abrir
         return tela_home
+
+register_eda_callbacks(app)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -93,6 +93,42 @@ body {
     padding: 10px;
 }
 
+/* ── ESTILO DA SIDEBAR (THINKMONEY) ── */
+
+/* 1. Estilização para o item ATIVO (Selecionado) */
+.custom-sidebar-menu label:has(input:checked) {
+    background-color: rgba(29, 18, 82, 0.05) !important; /* Fundo roxo bem claro */
+    border-left: 4px solid #1D1252 !important; /* Barra vertical roxa */
+    color: #1D1252 !important; /* Texto escuro e forte */
+    font-weight: 600 !important;
+}
+
+/* 2. Efeito de Hover (Mouse em cima) para itens não selecionados */
+.custom-sidebar-menu label:not(:has(input:checked)):hover {
+    background-color: #F9FAFB;
+    color: #1D1252;
+}
+
+.custom-sidebar-menu input[type="radio"] { 
+    display: none; 
+}
+
+/* Limpa o visual padrão do Dropdown do Dash */
+.Select-control {
+    border: 1px solid #E5E7EB !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    background-color: #FFFFFF !important;
+}
+
+/* Muda a cor da borda quando você clica/foca no dropdown (para o Roxo da sua marca) */
+.is-focused:not(.is-open) > .Select-control {
+    border-color: #1D1252 !important;
+    box-shadow: 0 0 0 1px rgba(29, 18, 82, 0.2) !important;
+}
+/* Opcional: Descomente a linha abaixo se quiser ESCONDER a bolinha do Radio
+   para deixar parecendo botões de navegação puros (como no design que enviei). */
+/* .custom-sidebar-menu input[type="radio"] { display: none; } */
 
 /* Botões modernos da aplicação */
 button,

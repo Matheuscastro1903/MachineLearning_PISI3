@@ -1,122 +1,225 @@
-from dash import dcc, html, Input, Output
+import dash
+from dash import html, dcc, Input, Output
 import pandas as pd
 import plotly.express as px
-from scipy.stats import kruskal
 
-# ── LAYOUT DA SEÇÃO 5.1 ────────────────────────────────────────────────────────
-layout = html.Div([
-    html.H2("5.1 – Waste Ratio por Variável Demográfica", 
-            style={'marginBottom': '20px', 'color': '#1D1252', 'fontSize': '22px'}),
-    
-    html.Div([
-        html.Label("Analisar impacto por:", style={'fontWeight': '600', 'marginRight': '12px'}),
-        dcc.RadioItems(
-            id='s51-group-var',
-            options=[
-                {'label': ' Faixa Etária',          'value': 'Age_Group'},
-                {'label': ' Ocupação Profissional', 'value': 'Occupation'},
-                {'label': ' Nº de Dependentes',     'value': 'Dependents'},
-            ],
-            value='Age_Group',
-            inline=True,
-            inputStyle={'marginRight': '6px'},
-            labelStyle={'marginRight': '24px', 'color': '#333', 'cursor': 'pointer'},
-        ),
-    ], style={'marginBottom': '24px', 'display': 'flex', 'alignItems': 'center'}),
-    
-    dcc.Loading(
-        type='dot',
-        color='#1D1252',
-        children=dcc.Graph(id='s51-violin', config={'displayModeBar': False})
-    ),
-    
-    html.Div([
-        html.Strong("Insight Estatístico (Kruskal-Wallis): ", style={'color': '#1D1252'}),
-        html.Span(id='s51-kruskal')
-    ], style={
-        'padding': '16px', 
-        'backgroundColor': '#f8f9fa', 
-        'borderLeft': '4px solid #1D1252',
-        'borderRadius': '4px', 
-        'marginTop': '16px', 
-        'fontSize': '14px'
-    }),
-])
+# ── PALETA DE CORES (Consistente com a Home) ──
+BG_MAIN = "#FFFFFF"
+BG_CARD = "#FEFEFF" 
+TEXT_MAIN = "#000000"
+TEXT_MUTED = "#555555" 
+BORDER_COLOR = "#1D1252"
+COLOR_ACCENT = "#1D1252" 
+COLOR_SUCCESS = "#4ADE80" 
+COLOR_ERROR = "#F87171"   
+COLOR_PLOT_FILL = "#7f7f7f"
 
-def register_callbacks(app):
-    @app.callback(
-        Output('s51-violin',  'figure'),
-        Output('s51-kruskal', 'children'),
-        Input('filtered-data-store', 'data'),
-        Input('s51-group-var', 'value'),
-    )
-    def update_s51(stored_data, group_var):
-        if not stored_data:
-            return {}, "Nenhum dado disponível após os filtros."
+# ── ESTILO PADRÃO DOS CARDS ──
+CARD_STYLE = {
+    'backgroundColor': BG_CARD,
+    'borderRadius': '12px',
+    'padding': '32px',
+    'marginBottom': '40px',
+    'border':'1px solid #E5E7EB',                 # Borda cinza bem clara e sutil
+    'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.04)'
+}
 
-        dff = pd.DataFrame(stored_data)
+TEXT_P_STYLE = {
+    'color': TEXT_MUTED, 
+    'marginBottom': '24px', 
+    'lineHeight': '1.7',
+    'fontSize': '16px',
+    'textAlign': 'justify'
+}
+
+def criar_bloco_estatistico_estatico(h_val, p_val, veredito, cor_veredito):
+    """Função auxiliar para gerar as caixas de texto estático no layout."""
+    return html.Div([
+        html.H4("Teste de Hipótese (Kruskal-Wallis)", style={'color': COLOR_ACCENT, 'marginBottom': '16px'}),
+        html.Div([
+            html.Div([html.Span("Estatística H: "), html.Strong(h_val)], style={'marginBottom': '8px', 'color': TEXT_MAIN}),
+            html.Div([html.Span("P-Valor: "), html.Strong(p_val)], style={'color': TEXT_MAIN})
+        ], style={'backgroundColor': 'rgba(0,0,0,0.03)', 'padding': '16px', 'borderRadius': '8px', 'marginBottom': '16px'}),
         
-        # Trava de Segurança Crítica: Verifica se a coluna existe antes de tentar limpar os NAs
-        if group_var not in dff.columns or 'Waste_Ratio' not in dff.columns:
-            erro_msg = html.Span(f"Erro de Dataset: As colunas '{group_var}' ou 'Waste_Ratio' não foram encontradas.", style={'color': '#E54B4B'})
-            return {}, erro_msg
+        html.Div([html.Strong("Veredito: ", style={'color': TEXT_MAIN}), html.Span(veredito, style={'color': cor_veredito, 'fontWeight': 'bold'})])
+    ], style={'marginTop': '24px', 'borderTop': f'1px solid {BORDER_COLOR}', 'paddingTop': '24px'})
 
-        dff = dff.dropna(subset=[group_var, 'Waste_Ratio']).copy()
-
-        labels = {
-            'Age_Group':  'Faixa Etária',
-            'Occupation': 'Ocupação Profissional',
-            'Dependents': 'Nº de Dependentes',
-        }
-
-        # Limpeza visual para os gráficos não exibirem underline (ex: "Jovem_Adulto" vira "Jovem Adulto")
-        if group_var in ['Age_Group', 'Occupation']:
-            dff[group_var] = dff[group_var].astype(str).str.replace('_', ' ')
-
-        # Ordenação das categorias
-        if group_var == 'Age_Group':
-            # Nota: Altere a lista abaixo se as categorias de idade do seu banco estiverem em inglês (ex: 'Young Adult')
-            order = ['Jovem Adulto', 'Adulto', 'Sênior', 'Idoso'] 
-            dff[group_var] = pd.Categorical(dff[group_var], categories=order, ordered=True)
-            cat_order = {group_var: order}
-        elif group_var == 'Dependents':
-            dff[group_var] = dff[group_var].astype(int).astype(str)
-            dep_vals = sorted(dff[group_var].unique(), key=int)
-            cat_order = {group_var: dep_vals}
-        else:
-            cat_order = {}
-
-        # Paleta de Cores da Marca
-        color_discrete_sequence = ['#1D1252', '#3A2E7A', '#594CA3', '#7B6FCD', '#A095F8']
-
-        fig = px.violin(
-            dff, x=group_var, y='Waste_Ratio', color=group_var,
-            box=True, points='outliers', category_orders=cat_order,
-            color_discrete_sequence=color_discrete_sequence,
-            labels={'Waste_Ratio': 'Gasto Evitável (%)', group_var: labels.get(group_var, group_var)},
-        )
+def get_layout():
+    """Retorna o layout estrutural da página. Os gráficos são injetados vazios."""
+    return html.Div([
         
-        # Otimização do Layout Plotly (Design System)
-        fig.update_layout(
-            showlegend=False, 
-            height=400,
-            plot_bgcolor='white', paper_bgcolor='white',
-            margin=dict(t=20, b=40, l=50, r=20),
-            font=dict(family="Segoe UI, Roboto, sans-serif", color="#333"),
-        )
-        fig.update_xaxes(showline=True, linewidth=1, linecolor='#e0e0e0', showgrid=False)
-        fig.update_yaxes(title_text='Gasto Evitável (%)', showline=False, showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
-
-        # Cálculo do Kruskal-Wallis com base nos dados filtrados
-        groups = [g['Waste_Ratio'].values for _, g in dff.groupby(group_var, observed=True) if len(g) >= 2]
-        if len(groups) >= 2:
-            stat, pval = kruskal(*groups)
-            conclusao = html.Span("Existe diferença significativa de gastos entre os grupos.", style={'color': '#E54B4B', 'fontWeight': 'bold'}) if pval < 0.05 else html.Span("Não há diferença estatística significativa entre os grupos.", style={'color': '#2e7d32', 'fontWeight': 'bold'})
+        # ── CABEÇALHO E METODOLOGIA ──
+        html.H1("Objetivo da Análise", style={'color': TEXT_MAIN, 'fontSize': '36px', 'marginBottom': '16px'}),
+        html.P("O objetivo desta análise é demonstrar que variáveis como o número de dependentes, profissão e idade não são fundamentais para definir se o usuário terá uma boa gestão do seu dinheiro.", 
+               style={'color': TEXT_MUTED, 'fontSize': '18px', 'marginBottom': '40px', 'lineHeight': '1.6'}),
+        
+        html.Div([
+            html.H3("Metodologia", style={'color': COLOR_ACCENT, 'fontSize': '20px', 'marginBottom': '12px'}),
+            html.P("Analisaremos essas variáveis em relação ao Savings Ratio (Taxa de Economia), que busca identificar quanto da renda está sendo 'perdido' em gastos supérfluos.", style=TEXT_P_STYLE),
             
-            kruskal_text = html.Span([
-                f"H = {stat:.2f} | p-valor = {pval:.4f} → ", conclusao
-            ])
-        else:
-            kruskal_text = "Grupos insuficientes para a execução do teste estatístico."
+            html.H4("O que o seu 'Percentual' realmente significa?", style={'color': TEXT_MAIN, 'fontSize': '16px', 'marginBottom': '12px'}),
+            html.Ul([
+                html.Li([html.Strong("Percentual ALTO (Ex: 40%): ", style={'color': COLOR_ERROR}), "Indica que a pessoa é ineficiente financeiramente. Ela gasta quase metade do que ganha com itens não essenciais."]),
+                html.Li([html.Strong("Percentual BAIXO (Ex: 5%): ", style={'color': COLOR_SUCCESS}), "Indica que a pessoa é eficiente. O orçamento está tão ajustado que quase não sobra margem para cortar gastos supérfluos."])
+            ], style={'color': TEXT_MUTED, 'lineHeight': '1.8'}),
+        ], style=CARD_STYLE),
 
-        return fig, kruskal_text
+        # ── 4.1 FAIXA ETÁRIA ──
+        html.Div([
+            html.H2("4.1. Análise: Potencial de Economia x Idade", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
+            html.P("A análise a seguir tenta provar que a idade não influencia diretamente no Potencial de economia. Embora o grupo de idosos possua uma amostra menor, a densidade do comportamento financeiro (onde o violino é mais 'gordo') é muito parecida com as demais idades.", style=TEXT_P_STYLE),
+            
+            # Gráfico dinâmico
+            dcc.Loading(color=COLOR_ACCENT, children=html.Div(id='grafico-idade-container')),
+            
+            # Texto Estatístico Estático
+            criar_bloco_estatistico_estatico(
+                h_val="6.5098", 
+                p_val="0.0893", 
+                veredito="As faixas etárias são estatisticamente iguais.", 
+                cor_veredito=COLOR_SUCCESS
+            )
+        ], style=CARD_STYLE),
+
+        # ── 4.2 OCUPAÇÃO ──
+        html.Div([
+            html.H2("4.2. Análise: Potencial de Economia x Ocupação", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
+            html.P("Nesta análise, verificamos a relação entre a profissão e a gestão da renda. O padrão observado anteriormente repete-se: a maior densidade de dados converge para a mesma percentagem, independentemente do cargo ocupado.", style=TEXT_P_STYLE),
+            
+            # Gráfico dinâmico
+            dcc.Loading(color=COLOR_ACCENT, children=html.Div(id='grafico-ocupacao-container')),
+            
+            # Texto Estatístico Estático
+            criar_bloco_estatistico_estatico(
+                h_val="6.0737", 
+                p_val="0.1081", 
+                veredito="As ocupações são estatisticamente iguais.", 
+                cor_veredito=COLOR_SUCCESS
+            )
+        ], style=CARD_STYLE),
+
+        # ── 4.3 DEPENDENTES ──
+        html.Div([
+            html.H2("4.3. Análise: Potencial de Economia x Dependentes", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
+            html.P("A análise indica que pessoas sem dependentes tendem a apresentar melhores índices de potencial de economia. No entanto, ao observar a densidade, notamos que a grande massa de dados se concentra de forma muito semelhante entre os grupos.", style=TEXT_P_STYLE),
+            
+            # Gráfico dinâmico
+            dcc.Loading(color=COLOR_ACCENT, children=html.Div(id='grafico-dependentes-container')),
+            
+            # Texto Estatístico Estático
+            criar_bloco_estatistico_estatico(
+                h_val="82.1886", 
+                p_val="0.0000", 
+                veredito="Existe influência do número de dependentes.", 
+                cor_veredito=COLOR_ERROR 
+            )
+        ], style=CARD_STYLE),
+
+        # ── CONCLUSÃO GERAL ──
+        html.Div([
+            html.H2("Conclusão Geral da Análise Demográfica", style={'color': COLOR_ACCENT, 'fontSize': '28px', 'marginBottom': '20px'}),
+            html.P("Após a realização dos testes estatísticos de Kruskal-Wallis, consolidamos as seguintes descobertas:", style=TEXT_P_STYLE),
+            
+            html.H4("Fatores Não-Determinantes (Ocupação e Idade)", style={'color': TEXT_MAIN, 'fontSize': '18px', 'marginBottom': '8px'}),
+            html.P("As análises provaram que a Ocupação e a Faixa Etária não possuem influência estatisticamente significativa sobre a eficiência financeira. Isso quebra o paradigma de que certos cargos ou maior maturidade resultariam em uma gestão mais consciente.", style=TEXT_P_STYLE),
+            
+            html.H4("O Fator Determinante (Número de Dependentes)", style={'color': TEXT_MAIN, 'fontSize': '18px', 'marginBottom': '8px'}),
+            html.P("A variável Número de Dependentes revelou-se um fator determinante no comportamento de desperdício. Mesmo sendo uma diferença sutil numericamente (aprox. 0.22 p.p.), ela é estatisticamente sólida devido ao robusto volume da amostra.", style=TEXT_P_STYLE),
+            
+            html.Div([
+                html.Strong("Análise Social: ", style={'color': COLOR_ACCENT}),
+                html.Span("Esta análise reforça a relevância de um planejamento familiar sólido. A convergência dos resultados nas outras variáveis indica uma carência generalizada de instrução sobre finanças que nivela o comportamento de gastos por toda a população, independentemente da fase da vida ou profissão.", style={'color': TEXT_MAIN, 'lineHeight': '1.6'})
+            ], style={'backgroundColor': 'rgba(29, 18, 82, 0.05)', 'padding': '20px', 'borderRadius': '8px', 'borderLeft': f'4px solid {COLOR_ACCENT}'})
+            
+        ], style=CARD_STYLE)
+        
+    ], style={'maxWidth': '1100px', 'margin': '0 auto'})
+
+# ── FUNÇÃO AUXILIAR DE RENDERIZAÇÃO (Apenas Gráfico) ──
+def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
+    """Gera apenas a figura Plotly, sem textos dinâmicos."""
+    
+    fig = px.violin(
+        df, x=var_x, y=var_y, 
+        color_discrete_sequence=[COLOR_PLOT_FILL], 
+        box=True, points='all', 
+        category_orders={var_x: order_cat} if order_cat else None,
+        labels={var_x: labels_x, var_y: "% de Economia Supérflua"},
+        title=titulo
+    )
+
+    fig.update_traces(
+        scalemode='count', opacity=0.6, line_width=1.5, line_color='black', 
+        meanline_visible=True, meanline_width=3, marker=dict(opacity=0.3, size=3)
+    )
+
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
+        margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
+        title_font=dict(size=16, color=COLOR_ACCENT),
+        xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
+        yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
+    )
+
+    return dcc.Graph(figure=fig, config={'displayModeBar': False})
+
+# ── REGISTO DOS CALLBACKS ──
+def register_callbacks(app):
+    
+    def pre_processar_dados(data):
+        """Helpers para calcular coluna base se necessário"""
+        if not data: return None
+        df = pd.DataFrame(data)
+        if 'Waste_Ratio' not in df.columns:
+            if all(col in df.columns for col in ['Eating_Out', 'Entertainment', 'Miscellaneous', 'Income']):
+                df['Waste_Ratio'] = ((df['Eating_Out'] + df['Entertainment'] + df['Miscellaneous']) / df['Income'].replace(0, 1)) * 100
+            else:
+                return None
+        return df
+
+    # Callback: IDADE
+    @app.callback(Output('grafico-idade-container', 'children'), Input('filtered-data-store', 'data'))
+    def render_idade(data):
+        df = pre_processar_dados(data)
+        if df is None: return html.Div("Erro de dados.", style={'color': COLOR_ERROR})
+        
+        bins = [18, 31, 46, 61, 200]
+        labels = ['Jovem Adulto', 'Adulto', 'Sênior', 'Idoso']
+        df['Age_Group'] = pd.cut(df['Age'], bins=bins, labels=labels, right=False)
+        df_clean = df.dropna(subset=['Age_Group', 'Waste_Ratio'])
+        
+        return _gerar_apenas_grafico(
+            df=df_clean, var_x='Age_Group', var_y='Waste_Ratio', 
+            labels_x="Faixa Etária", titulo="Distribuição por Faixa Etária (18+ anos)", order_cat=labels
+        )
+
+    # Callback: OCUPAÇÃO
+    @app.callback(Output('grafico-ocupacao-container', 'children'), Input('filtered-data-store', 'data'))
+    def render_ocupacao(data):
+        df = pre_processar_dados(data)
+        if df is None: return html.Div("Erro de dados.", style={'color': COLOR_ERROR})
+        
+        df_clean = df.dropna(subset=['Occupation', 'Waste_Ratio']).copy()
+        df_clean['Occupation'] = df_clean['Occupation'].astype(str).str.replace('_', ' ')
+        ordem = ['Student', 'Professional', 'Self Employed', 'Retired'] 
+        
+        return _gerar_apenas_grafico(
+            df=df_clean, var_x='Occupation', var_y='Waste_Ratio', 
+            labels_x="Tipo de Ocupação", titulo="Distribuição por Ocupação", order_cat=ordem
+        )
+
+    # Callback: DEPENDENTES
+    @app.callback(Output('grafico-dependentes-container', 'children'), Input('filtered-data-store', 'data'))
+    def render_dependentes(data):
+        df = pre_processar_dados(data)
+        if df is None: return html.Div("Erro de dados.", style={'color': COLOR_ERROR})
+        
+        df_clean = df.dropna(subset=['Dependents', 'Waste_Ratio']).copy()
+        df_clean['Dependents'] = pd.to_numeric(df_clean['Dependents'], errors='coerce').fillna(0).astype(int).astype(str)
+        ordem = sorted(df_clean['Dependents'].unique(), key=int)
+        
+        return _gerar_apenas_grafico(
+            df=df_clean, var_x='Dependents', var_y='Waste_Ratio', 
+            labels_x="Número de Dependentes", titulo="Distribuição por Dependentes", order_cat=ordem
+        )
