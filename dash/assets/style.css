@@ -87,11 +87,18 @@ body {
     color: #333;
 }
 
+.nav-btn {
+    background-color: #ffffff;
+    color: #1a104d;
+    padding: 10px;
+}
+
+
 /* Botões modernos da aplicação */
 button,
 .app-button {
     appearance: none;
-    background: linear-gradient(180deg, var(--bg-dark) 0%, #24165f 100%);
+    
     color: var(--button-text);
     border: 1px solid var(--button-border);
     border-radius: 10px;
