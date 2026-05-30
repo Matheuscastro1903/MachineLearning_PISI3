@@ -128,8 +128,8 @@ layout_eda = html.Div([
             # ── Container das Seções ──
             html.Div([
                 html.Div(s51.get_layout(), id='section-s51'),
-                html.Div(s52.layout, id='section-s52', style={'display': 'none'}),
-                html.Div(s53.layout, id='section-s53', style={'display': 'none'}),
+                html.Div(s52.get_layout(), id='section-s52', style={'display': 'none'}),
+                html.Div(s53.get_layout(), id='section-s53', style={'display': 'none'}),
                 html.Div(s54.layout, id='section-s54', style={'display': 'none'}),
                 html.Div(s55.layout, id='section-s55', style={'display': 'none'}),
                 html.Div(s56_m1.layout, id='section-s56', style={'display': 'none'}),
