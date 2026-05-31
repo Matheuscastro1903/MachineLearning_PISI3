@@ -2,17 +2,13 @@ import pandas as pd
 import os
 
 def load_and_preprocess_data():
-    # Ajuste o caminho do CSV de acordo com a sua pasta
     csv_path = os.path.join(os.path.dirname(__file__), '..', 'dataset', 'data.csv')
     
-    # 1. Carregamento
     df = pd.read_csv(csv_path)
     
-    # 2. Limpeza básica (remover valores nulos se houver)
     df = df.dropna()
     
-    # 3. Criação de Colunas Derivadas
-    # Lista de colunas de despesas mapeadas do dicionário
+    # Criação de Colunas Derivadas
     expense_columns = [
         'Rent', 'Loan_Repayment', 'Insurance', 'Groceries', 
         'Transport', 'Eating_Out', 'Entertainment', 'Utilities', 
@@ -50,5 +46,13 @@ def load_and_preprocess_data():
 
     return df
 
-# Exportamos um DataFrame global limpo para ser usado na inicialização do App
+
+
+
 df_master = load_and_preprocess_data()
+
+# ── ADICIONE ESTAS 4 LINHAS NO FINAL DO ARQUIVO ──
+city_tiers = [str(c).replace('_', ' ') for c in df_master['City_Tier'].unique()]
+occupations = [str(o).replace('_', ' ') for o in df_master['Occupation'].unique()]
+min_income  = df_master['Income'].min()
+max_income  = df_master['Income'].max()
