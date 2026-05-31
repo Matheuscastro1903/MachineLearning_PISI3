@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 
-# ── PALETA DE CORES (Consistente com a Home) ──
+
 BG_MAIN = "#FFFFFF"
 BG_CARD = "#FEFEFF"
 TEXT_MAIN = "#000000"
@@ -14,7 +14,7 @@ COLOR_SUCCESS = "#4ADE80"
 COLOR_ERROR = "#F87171"
 COLOR_PLOT_FILL = "#7f7f7f"
 
-# ── ESTILO PADRÃO DOS CARDS ──
+
 CARD_STYLE = {
     'backgroundColor': BG_CARD,
     'borderRadius': '12px',
@@ -51,7 +51,7 @@ def get_layout():
     """Retorna o layout estrutural da página. Os gráficos são injetados vazios."""
     return html.Div([
 
-        # ── CABEÇALHO E METODOLOGIA ──
+       
         html.H1("Análise Exploratória do Gasto com Transporte", style={'color': TEXT_MAIN, 'fontSize': '36px', 'marginBottom': '16px'}),
         html.P(
             "Esta seção investiga uma das crenças mais comuns no planejamento financeiro: a de que o custo de transporte "
@@ -76,7 +76,7 @@ def get_layout():
             ], style={'color': TEXT_MUTED, 'lineHeight': '1.8'}),
         ], style=CARD_STYLE),
 
-        # ── 5.2.1 ACOMODAÇÃO DE ESTILO DE VIDA ──
+        #5.2.1 ACOMODAÇÃO DE ESTILO DE VIDA
         html.Div([
             html.H2("5.2.1. O Fenômeno da Acomodação de Estilo de Vida", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -97,7 +97,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.2.2 DISTRIBUIÇÃO POR CITY TIER (BOXPLOT) ──
+        #  5.2.2 DISTRIBUIÇÃO POR CITY TIER (BOXPLOT) 
         html.Div([
             html.H2("5.2.2. Análise Comparativa por City Tier", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -117,7 +117,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.2.2 TENDÊNCIA POR CITY TIER (DISPERSÃO) ──
+        #  5.2.2 TENDÊNCIA POR CITY TIER (DISPERSÃO) 
         html.Div([
             html.H2("5.2.2. Dispersão e Tendência por City Tier", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -138,7 +138,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── CONCLUSÃO GERAL ──
+       
         html.Div([
             html.H2("Conclusão Geral da Análise de Transporte", style={'color': COLOR_ACCENT, 'fontSize': '28px', 'marginBottom': '20px'}),
             html.P(
@@ -174,7 +174,7 @@ def get_layout():
     ], style={'maxWidth': '1100px', 'margin': '0 auto'})
 
 
-# ── FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ──
+
 
 def _gerar_scatter_ols(df):
     """Gera gráfico de dispersão com linha de tendência OLS (renda vs transporte)."""
@@ -278,7 +278,7 @@ def _gerar_scatter_tier(df):
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 
 
-# ── REGISTO DOS CALLBACKS ──
+
 def register_callbacks(app):
 
     @app.callback(Output('grafico-transporte-ols-container', 'children'), Input('filtered-data-store', 'data'))

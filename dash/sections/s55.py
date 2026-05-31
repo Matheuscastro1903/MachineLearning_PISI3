@@ -12,7 +12,6 @@ layout = html.Div([
     html.H2("5.5 – Gasto com Dopamina e Imposto do Cansaço", 
             style={'marginBottom': '20px', 'color': '#1D1252', 'fontSize': '22px'}),
     
-    # ── Painel de Controle ──
     html.Div([
         # Linha 1: Visão da Análise
         html.Div([
@@ -69,7 +68,7 @@ layout = html.Div([
         children=dcc.Graph(id='s55-graph', config={'displayModeBar': False})
     ),
     
-    # ── Card de Insight ──
+   
     html.Div([
         html.Strong("Insight Comportamental: ", style={'color': '#1D1252'}),
         html.Span(id='s55-insight')

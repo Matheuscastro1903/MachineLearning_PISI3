@@ -2,7 +2,7 @@ from dash import html, dcc, Input, Output
 import pandas as pd
 import plotly.express as px
 
-# ── PALETA DE CORES (Consistente com a Home) ──
+
 BG_MAIN = "#FFFFFF"
 BG_CARD = "#FEFEFF"
 TEXT_MAIN = "#000000"
@@ -15,7 +15,7 @@ COLOR_ERROR = "#F87171"
 TIERS = ['Tier 1', 'Tier 2', 'Tier 3']
 SEQ_COLORS = ['#1D1252', '#594CA3', '#A095F8']
 
-# ── ESTILO PADRÃO DOS CARDS ──
+
 CARD_STYLE = {
     'backgroundColor': BG_CARD,
     'borderRadius': '12px',
@@ -52,7 +52,6 @@ def get_layout():
     """Retorna o layout estrutural da página. Os gráficos são injetados vazios."""
     return html.Div([
 
-        # ── CABEÇALHO E METODOLOGIA ──
         html.H1("5.4 – Custo de Moradia e Saúde Financeira", style={
             'color': TEXT_MAIN, 'fontSize': '36px', 'marginBottom': '16px'
         }),
@@ -81,7 +80,7 @@ def get_layout():
             ], style={'color': TEXT_MUTED, 'lineHeight': '1.8'}),
         ], style=CARD_STYLE),
 
-        # ── 5.4.1 DISPERSÃO DO ALUGUEL (BOXPLOT) ──
+        #  5.4.1 DISPERSÃO DO ALUGUEL (BOXPLOT) 
         html.Div([
             html.H2("5.4.1. Dispersão do Aluguel por City Tier", style={
                 'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'
@@ -101,7 +100,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.4.2 DENSIDADE DO ALUGUEL (VIOLIN) ──
+        #  5.4.2 DENSIDADE DO ALUGUEL (VIOLIN) 
         html.Div([
             html.H2("5.4.2. Densidade do Aluguel por City Tier", style={
                 'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'
@@ -121,7 +120,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.4.3 COMPROMETIMENTO DA RENDA ──
+        #  5.4.3 COMPROMETIMENTO DA RENDA
         html.Div([
             html.H2("5.4.3. Comprometimento da Renda com Moradia", style={
                 'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'
@@ -141,7 +140,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.4.4 ESTATÍSTICAS DESCRITIVAS ──
+        #  5.4.4 ESTATÍSTICAS DESCRITIVAS 
         html.Div([
             html.H2("5.4.4. Estatísticas Descritivas do Aluguel por Tier", style={
                 'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'
@@ -162,7 +161,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── CONCLUSÃO GERAL ──
+       
         html.Div([
             html.H2("Conclusão Geral da Análise Habitacional", style={
                 'color': COLOR_ACCENT, 'fontSize': '28px', 'marginBottom': '20px'
@@ -207,7 +206,7 @@ def get_layout():
     ], style={'maxWidth': '1100px', 'margin': '0 auto'})
 
 
-# ── FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ──
+
 
 def _gerar_boxplot(df):
     """Gera boxplot do aluguel por City Tier."""
@@ -336,7 +335,7 @@ def _gerar_stats(df):
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 
 
-# ── REGISTRO DOS CALLBACKS ──
+
 def register_callbacks(app):
 
     @app.callback(Output('grafico-s54-boxplot-container', 'children'), Input('filtered-data-store', 'data'))

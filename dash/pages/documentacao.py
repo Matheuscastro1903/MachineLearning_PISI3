@@ -1,15 +1,15 @@
 from dash import html
 
-# ── PALETA DE CORES (Branco e Verde Flat) ──
+
 COLOR_BG = "#FFFFFF"
-COLOR_SURFACE = "#F9FAFB" # Cinza super claro para fundos secundários
-COLOR_PRIMARY = "#1D1252" # Verde Principal
+COLOR_SURFACE = "#F9FAFB" 
+COLOR_PRIMARY = "#1D1252" 
 
 COLOR_TEXT_MAIN = "#1F2937"
 COLOR_TEXT_MUTED = "#6B7280"
 COLOR_BORDER = "#E5E7EB"
 
-# ── COMPONENTES REUTILIZÁVEIS (Micro-Design System) ──
+
 def card_metrica(titulo, media, std, min_val=None, max_val=None):
     """Cria um card padronizado para as métricas numéricas"""
     detalhes = [
@@ -36,7 +36,7 @@ def card_categorico(titulo, categorias):
         html.P(categorias, style={'marginTop': '12px', 'fontSize': '14px', 'color': COLOR_TEXT_MUTED})
     ], style={'backgroundColor': COLOR_BG, 'padding': '16px', 'borderRadius': '6px', 'border': f'1px solid {COLOR_BORDER}'})
 
-# ── ESTRUTURA LATERAL (SIDEBAR DE NAVEGAÇÃO INTERNA) ──
+
 sidebar_docs = html.Div([
     html.H4("Índice", style={'color': COLOR_PRIMARY, 'marginBottom': '20px', 'fontSize': '18px'}),
     html.Ul([
@@ -52,18 +52,18 @@ sidebar_docs = html.Div([
     'borderRight': f'1px solid {COLOR_BORDER}',
     'padding': '30px', 
     'flexShrink': '0' ,
-    'position': 'sticky', # Faz a sidebar grudar na tela
-    'top': '0',           # Gruda exatamente no topo do container
+    'position': 'sticky', 
+    'top': '0',           
     'height': '100vh'
 })
 
-# ── CONTEÚDO PRINCIPAL DA DOCUMENTAÇÃO ──
+
 conteudo_docs = html.Div([
     
     html.H1("Documentação do Dataset", style={'color': COLOR_TEXT_MAIN, 'marginTop': '0', 'marginBottom': '8px'}),
     html.P("Referência técnica estruturada para análise e modelagem de dados.", style={'color': COLOR_TEXT_MUTED, 'marginBottom': '30px'}),
 
-    # Resumo Geral (Badges)
+   
     html.Div([
         html.Div([html.Strong("Total de Registros: "), "20.000 linhas"], style={'padding': '12px 20px', 'backgroundColor': COLOR_BG, 'color': COLOR_PRIMARY, 'borderRadius': '6px', 'border': f'1px solid {COLOR_PRIMARY}'}),
         html.Div([html.Strong("Total de Colunas: "), "27"], style={'padding': '12px 20px', 'backgroundColor': COLOR_SURFACE, 'border': f'1px solid {COLOR_BORDER}', 'borderRadius': '6px'}),
@@ -122,14 +122,13 @@ conteudo_docs = html.Div([
     ], style={'display': 'grid', 'gridTemplateColumns': 'repeat(auto-fit, minmax(200px, 1fr))', 'gap': '15px', 'marginBottom': '60px'}),
 
 ], style={
-    'flex': '1', # Ocupa todo o espaço restante ao lado da sidebar
+    'flex': '1', 
     'padding': '40px',
     
     'backgroundColor': COLOR_SURFACE
 })
 
-# ── EXPORTAÇÃO DO LAYOUT FINAL ──
-# Este é o container que une a Sidebar Lateral ao Conteúdo Principal usando Flexbox
+
 layout = html.Div([
     sidebar_docs,
     conteudo_docs

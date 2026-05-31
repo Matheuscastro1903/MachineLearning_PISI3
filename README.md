@@ -1,6 +1,22 @@
 # MachineLearning_PISI3
 
-Projeto de análise de dados e Machine Learning com foco em finanças pessoais, construído com Dash, Pandas, Plotly e Scikit-Learn. O repositório reúne o dashboard principal ThinkMoney, análises exploratórias em notebooks, modelos treinados e scripts de apoio para preparação de dados.
+<p align="center">
+	<img src="dash/assets/logo.png" alt="ThinkMoney" width="120" />
+</p>
+
+<p align="center">
+	Projeto de análise de dados e Machine Learning com foco em finanças pessoais, construído com Dash, Pandas, Plotly e Scikit-Learn.
+</p>
+
+<p align="center">
+	<a href="https://dashboard-pisi3-grupo-5.onrender.com/">Acessar dashboard publicado</a>
+	&nbsp;|&nbsp;
+	<a href="#como-executar">Executar localmente</a>
+	&nbsp;|&nbsp;
+	<a href="#funcionalidades-do-dashboard">Ver funcionalidades</a>
+</p>
+
+> O repositório reúne o dashboard principal ThinkMoney, análises exploratórias em notebooks, modelos treinados e scripts de apoio para preparação de dados.
 
 ## Visão geral
 
@@ -15,9 +31,9 @@ Além do dashboard, o repositório também contém notebooks de estudo e artefat
 
 ## Dashboard publicado
 
-O dashboard está disponível em produção no link abaixo:
+O dashboard está disponível em produção neste link:
 
-- https://dashboard-pisi3-grupo-5.onrender.com/
+- [dashboard-pisi3-grupo-5.onrender.com](https://dashboard-pisi3-grupo-5.onrender.com/)
 
 Essa é a forma mais rápida de acessar a versão já publicada da aplicação.
 
@@ -31,6 +47,9 @@ Essa é a forma mais rápida de acessar a versão já publicada da aplicação.
 - Script utilitário para converter o dataset de CSV para Parquet.
 
 ## Estrutura do projeto
+
+<details>
+<summary>Ver a organização dos arquivos</summary>
 
 ```text
 MachineLearning_PISI3/
@@ -65,8 +84,10 @@ MachineLearning_PISI3/
 │   ├── modelo_clusterizacao/
 │   └── modelo_joao_vulnerabilidade/
 └── scripts/
-	└── converter_para_parquet.py
+    └── converter_para_parquet.py
 ```
+
+</details>
 
 ## Stack utilizada
 
@@ -80,6 +101,16 @@ MachineLearning_PISI3/
 - Joblib
 
 As dependências do dashboard estão listadas em `dash/requirements.txt`.
+
+## Resumo rápido
+
+| Item | Detalhe |
+|---|---|
+| App principal | `dash/app.py` |
+| Página inicial | Home do ThinkMoney |
+| Áreas principais | Home, Documentação, EDA e Machine Learning |
+| Dataset | Base financeira tabular com 20.000 registros |
+| Deploy | Render |
 
 ## Dataset
 
@@ -142,6 +173,13 @@ python dash\app.py
 ```
 
 Depois disso, abra o endereço exibido no terminal, normalmente `http://127.0.0.1:8050/`.
+
+## Navegação do dashboard
+
+- Home: apresentação inicial do projeto.
+- Documentação: descrição das variáveis e resumo da base.
+- EDA: filtros e análises temáticas sobre perfil e finanças.
+- Machine Learning: previsão de vulnerabilidade financeira com threshold ajustável.
 
 ## Funcionalidades do dashboard
 
