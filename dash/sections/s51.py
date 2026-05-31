@@ -3,7 +3,6 @@ from dash import html, dcc, Input, Output
 import pandas as pd
 import plotly.express as px
 
-# ── PALETA DE CORES (Consistente com a Home) ──
 BG_MAIN = "#FFFFFF"
 BG_CARD = "#FEFEFF" 
 TEXT_MAIN = "#000000"
@@ -14,7 +13,6 @@ COLOR_SUCCESS = "#4ADE80"
 COLOR_ERROR = "#F87171"   
 COLOR_PLOT_FILL = "#7f7f7f"
 
-# ── ESTILO PADRÃO DOS CARDS ──
 CARD_STYLE = {
     'backgroundColor': BG_CARD,
     'borderRadius': '12px',
@@ -48,7 +46,6 @@ def get_layout():
     """Retorna o layout estrutural da página. Os gráficos são injetados vazios."""
     return html.Div([
         
-        # ── CABEÇALHO E METODOLOGIA ──
         html.H1("Objetivo da Análise", style={'color': TEXT_MAIN, 'fontSize': '36px', 'marginBottom': '16px'}),
         html.P("O objetivo desta análise é demonstrar que variáveis como o número de dependentes, profissão e idade não são fundamentais para definir se o usuário terá uma boa gestão do seu dinheiro.", 
                style={'color': TEXT_MUTED, 'fontSize': '18px', 'marginBottom': '40px', 'lineHeight': '1.6'}),
@@ -64,7 +61,6 @@ def get_layout():
             ], style={'color': TEXT_MUTED, 'lineHeight': '1.8'}),
         ], style=CARD_STYLE),
 
-        # ── 4.1 FAIXA ETÁRIA ──
         html.Div([
             html.H2("4.1. Análise: Potencial de Economia x Idade", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P("A análise a seguir tenta provar que a idade não influencia diretamente no Potencial de economia. Embora o grupo de idosos possua uma amostra menor, a densidade do comportamento financeiro (onde o violino é mais 'gordo') é muito parecida com as demais idades.", style=TEXT_P_STYLE),
@@ -81,7 +77,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 4.2 OCUPAÇÃO ──
+        # 4.2 OCUPAÇÃO
         html.Div([
             html.H2("4.2. Análise: Potencial de Economia x Ocupação", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P("Nesta análise, verificamos a relação entre a profissão e a gestão da renda. O padrão observado anteriormente repete-se: a maior densidade de dados converge para a mesma percentagem, independentemente do cargo ocupado.", style=TEXT_P_STYLE),
@@ -98,7 +94,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 4.3 DEPENDENTES ──
+        # 4.3 DEPENDENTES
         html.Div([
             html.H2("4.3. Análise: Potencial de Economia x Dependentes", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P("A análise indica que pessoas sem dependentes tendem a apresentar melhores índices de potencial de economia. No entanto, ao observar a densidade, notamos que a grande massa de dados se concentra de forma muito semelhante entre os grupos.", style=TEXT_P_STYLE),
@@ -115,7 +111,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── CONCLUSÃO GERAL ──
+        #  CONCLUSÃO GERAL 
         html.Div([
             html.H2("Conclusão Geral da Análise Demográfica", style={'color': COLOR_ACCENT, 'fontSize': '28px', 'marginBottom': '20px'}),
             html.P("Após a realização dos testes estatísticos de Kruskal-Wallis, consolidamos as seguintes descobertas:", style=TEXT_P_STYLE),
@@ -135,7 +131,7 @@ def get_layout():
         
     ], style={'maxWidth': '1100px', 'margin': '0 auto'})
 
-# ── FUNÇÃO AUXILIAR DE RENDERIZAÇÃO (Apenas Gráfico) ──
+
 def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
     """Gera apenas a figura Plotly, sem textos dinâmicos."""
     
@@ -164,7 +160,7 @@ def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
 
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 
-# ── REGISTO DOS CALLBACKS ──
+
 def register_callbacks(app):
     
     def pre_processar_dados(data):
@@ -178,7 +174,7 @@ def register_callbacks(app):
                 return None
         return df
 
-    # Callback: IDADE
+    
     @app.callback(Output('grafico-idade-container', 'children'), Input('filtered-data-store', 'data'))
     def render_idade(data):
         df = pre_processar_dados(data)
@@ -194,7 +190,7 @@ def register_callbacks(app):
             labels_x="Faixa Etária", titulo="Distribuição por Faixa Etária (18+ anos)", order_cat=labels
         )
 
-    # Callback: OCUPAÇÃO
+    
     @app.callback(Output('grafico-ocupacao-container', 'children'), Input('filtered-data-store', 'data'))
     def render_ocupacao(data):
         df = pre_processar_dados(data)
@@ -209,7 +205,6 @@ def register_callbacks(app):
             labels_x="Tipo de Ocupação", titulo="Distribuição por Ocupação", order_cat=ordem
         )
 
-    # Callback: DEPENDENTES
     @app.callback(Output('grafico-dependentes-container', 'children'), Input('filtered-data-store', 'data'))
     def render_dependentes(data):
         df = pre_processar_dados(data)

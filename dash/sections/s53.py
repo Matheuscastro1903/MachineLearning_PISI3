@@ -2,7 +2,7 @@ from dash import html, dcc, Input, Output
 import pandas as pd
 import plotly.express as px
 
-# ── PALETA DE CORES (Consistente com a Home) ──
+
 BG_MAIN = "#FFFFFF"
 BG_CARD = "#FEFEFF"
 TEXT_MAIN = "#000000"
@@ -13,7 +13,7 @@ COLOR_SUCCESS = "#4ADE80"
 COLOR_ERROR = "#F87171"
 COLOR_PLOT_FILL = "#7f7f7f"
 
-# ── ESTILO PADRÃO DOS CARDS ──
+
 CARD_STYLE = {
     'backgroundColor': BG_CARD,
     'borderRadius': '12px',
@@ -56,7 +56,6 @@ def get_layout():
     """Retorna o layout estrutural da página. Os gráficos são injetados vazios."""
     return html.Div([
 
-        # ── CABEÇALHO E METODOLOGIA ──
         html.H1("Condicionantes Financeiros ao Longo da Vida", style={'color': TEXT_MAIN, 'fontSize': '36px', 'marginBottom': '16px'}),
         html.P(
             "Esta seção apresenta os resultados da análise exploratória sobre como renda, idade, número de dependentes, "
@@ -83,7 +82,7 @@ def get_layout():
             ], style={'color': TEXT_MUTED, 'lineHeight': '1.8'}),
         ], style=CARD_STYLE),
 
-        # ── 5.3.1 RENDA MÉDIA POR FAIXA ETÁRIA ──
+        # 5.3.1 RENDA MÉDIA POR FAIXA ETÁRIA 
         html.Div([
             html.H2("5.3.1. Renda Média por Faixa Etária", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -103,7 +102,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.3.2 DISTRIBUIÇÃO DE RENDA POR OCUPAÇÃO ──
+        #  5.3.2 DISTRIBUIÇÃO DE RENDA POR OCUPAÇÃO 
         html.Div([
             html.H2("5.3.2. Distribuição e Instabilidade de Renda por Ocupação", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -123,7 +122,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.3.3 GASTOS FIXOS POR CITY TIER ──
+        #  5.3.3 GASTOS FIXOS POR CITY TIER 
         html.Div([
             html.H2("5.3.3. Comprometimento da Renda com Gastos Fixos por City Tier", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -144,7 +143,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.3.4 MAPA DE CORRELAÇÃO ──
+        #  5.3.4 MAPA DE CORRELAÇÃO 
         html.Div([
             html.H2("5.3.4. Mapa de Correlação entre Variáveis Numéricas", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -164,7 +163,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.3.5 RENDA DISPONÍVEL POR FAIXA ETÁRIA E DEPENDENTES ──
+        #  5.3.5 RENDA DISPONÍVEL POR FAIXA ETÁRIA E DEPENDENTES 
         html.Div([
             html.H2("5.3.5. Ciclo de Vida Financeiro: Renda Disponível por Faixa Etária e Dependentes", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -185,7 +184,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── 5.3.6 TRAJETÓRIA DE RENDA POR OCUPAÇÃO ──
+        #  5.3.6 TRAJETÓRIA DE RENDA POR OCUPAÇÃO 
         html.Div([
             html.H2("5.3.6. Trajetória de Renda Mediana por Ocupação ao Longo da Vida", style={'color': TEXT_MAIN, 'fontSize': '28px', 'marginBottom': '16px'}),
             html.P(
@@ -206,7 +205,7 @@ def get_layout():
             )
         ], style=CARD_STYLE),
 
-        # ── CONCLUSÃO GERAL ──
+        
         html.Div([
             html.H2("Conclusão Geral", style={'color': COLOR_ACCENT, 'fontSize': '28px', 'marginBottom': '20px'}),
             html.P(
@@ -240,7 +239,7 @@ def get_layout():
     ], style={'maxWidth': '1100px', 'margin': '0 auto'})
 
 
-# ── FUNÇÕES AUXILIARES DE RENDERIZAÇÃO ──
+
 
 def _pre_processar(data):
     """Computa colunas derivadas necessárias para as análises."""
@@ -404,7 +403,7 @@ def _gerar_linha_trajetoria(df):
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 
 
-# ── REGISTO DOS CALLBACKS ──
+
 def register_callbacks(app):
 
     @app.callback(Output('grafico-s53-renda-idade-container', 'children'), Input('filtered-data-store', 'data'))

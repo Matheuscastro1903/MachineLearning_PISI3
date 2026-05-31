@@ -1,17 +1,16 @@
 from dash import html
 
-# ── DEFINIÇÃO DE CORES GLOBAIS ──
+
 ROXO_FUNDO = "#1D1252"
 BRANCO = "#FFFFFF"
 
-# Componente isolado com estilos "Inline" dimensionado para Monitores Médios/Grandes
 tela_home = html.Div(
     style={
         'backgroundColor': ROXO_FUNDO,
         'color': BRANCO,
         'width': '100%',       
         'minHeight': '100vh',  
-        'padding': '120px 80px 80px 80px', # Margens laterais um pouco maiores
+        'padding': '120px 80px 80px 80px', 
         'position': 'relative',
         'overflow': 'hidden',
         'boxShadow': '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
@@ -20,7 +19,6 @@ tela_home = html.Div(
         'boxSizing': 'border-box' 
     },
     children=[
-        # ── Elemento decorativo de fundo (Luz/Borrão) ──
         html.Div(style={
             'position': 'absolute', 'top': '0', 'right': '0', 'width': '60%', 'height': '100%', 
             'opacity': '0.1', 'pointerEvents': 'none',
@@ -28,23 +26,20 @@ tela_home = html.Div(
             'transform': 'translate(30%, -30%)'
         }),
         
-        # ── Container Principal (FLEXBOX) ──
         html.Div(
             style={
                 'display': 'flex', 
                 'flexDirection': 'row', 
                 'alignItems': 'center', 
                 'justifyContent': 'space-between',
-                'gap': '80px',          # Aumentado o espaço entre as colunas
-                'maxWidth': '1400px',   # Aumentado para dar espaço às fontes maiores
+                'gap': '80px',          
+                'maxWidth': '1400px',   
                 'margin': '0 auto'
             }, 
             children=[
             
-            # ── Coluna da Esquerda (Texto e CTAs) ──
             html.Div(style={'flex': '1.5'}, children=[
                 
-                # Badge "Algorithmic Live Feed"
                 html.Div(
                     style={
                         'display': 'inline-flex', 'alignItems': 'center', 'gap': '12px',
@@ -89,7 +84,6 @@ tela_home = html.Div(
                 ])
             ]),
             
-            # ── Coluna da Direita (Card Visual do Gráfico) ──
             html.Div(style={'flex': '1', 'position': 'relative'}, children=[
                 
                 # O Card de Vidro
@@ -112,7 +106,6 @@ tela_home = html.Div(
                         
                     ]),
                     
-                    # ── O GRÁFICO ──
                     html.Div(
                         style={'height': '260px', 'width': '100%', 'display': 'flex', 'alignItems': 'flex-end', 'gap': '8px', 'marginBottom': '32px'}, # Altura de 180px para 260px
                         children=[

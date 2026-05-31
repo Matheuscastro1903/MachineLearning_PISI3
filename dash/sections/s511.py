@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from scipy.stats import kruskal
 
-# ── LAYOUT DA SEÇÃO 5.1 ────────────────────────────────────────────────────────
+
 layout = html.Div([
     html.H2("5.1 – Waste Ratio por Variável Demográfica", 
             style={'marginBottom': '20px', 'color': '#1D1252', 'fontSize': '22px'}),
@@ -56,7 +56,6 @@ def register_callbacks(app):
 
         dff = pd.DataFrame(stored_data)
         
-        # Trava de Segurança Crítica: Verifica se a coluna existe antes de tentar limpar os NAs
         if group_var not in dff.columns or 'Waste_Ratio' not in dff.columns:
             erro_msg = html.Span(f"Erro de Dataset: As colunas '{group_var}' ou 'Waste_Ratio' não foram encontradas.", style={'color': '#E54B4B'})
             return {}, erro_msg
@@ -86,7 +85,6 @@ def register_callbacks(app):
         else:
             cat_order = {}
 
-        # Paleta de Cores da Marca
         color_discrete_sequence = ['#1D1252', '#3A2E7A', '#594CA3', '#7B6FCD', '#A095F8']
 
         fig = px.violin(
@@ -96,7 +94,7 @@ def register_callbacks(app):
             labels={'Waste_Ratio': 'Gasto Evitável (%)', group_var: labels.get(group_var, group_var)},
         )
         
-        # Otimização do Layout Plotly (Design System)
+   
         fig.update_layout(
             showlegend=False, 
             height=400,

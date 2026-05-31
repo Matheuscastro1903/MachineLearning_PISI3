@@ -13,7 +13,7 @@ app = dash.Dash(__name__, title="ThinkMoney Dashboard", suppress_callback_except
 app.layout = html.Div([
     dcc.Store(id='filtered-data-store'),
 
-    # Header - Identidade ThinkMoney (O SEU CÓDIGO INTACTO)
+
     html.Div([
         html.Div([
             html.Img(src='/assets/logo.png', style={'height': '60px', 'marginRight': '10px'}),
@@ -36,15 +36,14 @@ app.layout = html.Div([
         'borderBottom': '1px solid #eaeaea'
     }),
     
-    # ── A SOLUÇÃO PARTE 1 ESTÁ AQUI ──
-    # O container de páginas NÃO pode ter padding nem margin!
+   
     html.Div(id='page-content', style={'margin': '0', 'padding': '0', 'width': '100%'})
     
-], style={'margin': '0', 'padding': '0'}) # O container PAI de todos também sem margens
+], style={'margin': '0', 'padding': '0'}) 
 
-# ── ROTEADOR CENTRAL ──
+
 @app.callback(
-    Output('page-content', 'children'), # Nós vamos alterar os 'filhos' dessa div
+    Output('page-content', 'children'), 
     [Input('btn-home', 'n_clicks'),
      Input('btn-docs', 'n_clicks'),
      Input('btn-eda', 'n_clicks'),
@@ -53,13 +52,11 @@ app.layout = html.Div([
     Input('btn-home-eda', 'n_clicks', allow_optional=True)]
 )
 def mudar_pagina(b1, b2, b3, b4, b5, b6):
-    # O 'ctx.triggered_id' é o identificador mágico do Dash. 
-    # Ele descobre exatamente qual dos 4 botões disparou essa função.
+    
     botao_clicado = ctx.triggered_id
     
     if botao_clicado == 'btn-eda':
-        # Aqui você retornaria o layout importado da sua página de EDA.
-        # Exemplo: return eda_page.layout
+       
         return layout_eda
         
     elif botao_clicado == 'btn-ml':
@@ -75,7 +72,7 @@ def mudar_pagina(b1, b2, b3, b4, b5, b6):
         return conteudo_docs
         
     else:
-        # Cai aqui se o botão Home for clicado OU quando o aplicativo acabar de abrir
+        
         return tela_home
 
 register_eda_callbacks(app)

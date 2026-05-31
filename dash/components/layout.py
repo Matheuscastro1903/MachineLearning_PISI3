@@ -27,7 +27,7 @@ container_principal = html.Div([
             ),
         ], className="sidebar"),
 
-        # ── ÁREA DE CONTEÚDO ──
+       
         html.Div([
             
             # Card de Filtros Globais
@@ -66,7 +66,7 @@ container_principal = html.Div([
                 ], className="filters-grid")
             ], className="card"),
 
-            # Output de Debug discreto
+         
             html.Div(id='debug-output', style={'fontSize': '13px', 'color': '#888', 'textAlign': 'right', 'marginTop': '-10px'}),
 
             # Container das Seções

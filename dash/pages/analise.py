@@ -1,17 +1,15 @@
 import dash
 from dash import dcc, html, Input, Output
 
-# ── IMPORTS DOS SEUS DADOS E SEÇÕES (Mantenha os seus) ──
 from data import df_master 
 from sections import s51, s52, s53, s54, s55, s56_m1
 
-# ── PREPARAÇÃO DOS DADOS DE FILTRO ──
 city_tiers = [str(c).replace('_', ' ') for c in df_master['City_Tier'].unique()]
 occupations = [str(o).replace('_', ' ') for o in df_master['Occupation'].unique()]
 min_income  = df_master['Income'].min()
 max_income  = df_master['Income'].max()
 
-# ── PALETA DE CORES (ThinkMoney Dark Mode) ──
+
 BG_MAIN = "#FFFFFF"
 BG_CARD = "#FFFFFF" 
 BG_SIDEBAR = "#FFFFFF"
@@ -25,7 +23,7 @@ layout_eda = html.Div([
     
     dcc.Store(id='filtered-data-store'),
 
-    # Container Flex principal (Sidebar à esquerda, Conteúdo à direita)
+    
     html.Div([
         
        html.Div([
@@ -45,7 +43,7 @@ layout_eda = html.Div([
                     {'label': ' 5.6 – M1 (Vulnerabilidade)', 'value': 's56'},
                 ],
                 value='s51',
-                className='custom-sidebar-menu', # <-- CLASSE ESSENCIAL PARA A MÁGICA VISUAL
+                className='custom-sidebar-menu', 
                 labelStyle={
                     'display': 'flex', 'alignItems': 'center', 'cursor': 'pointer',
                     'padding': '12px 16px', 'marginBottom': '8px', 
@@ -56,19 +54,19 @@ layout_eda = html.Div([
             ),
         ], style={
             'width': '280px', 
-            'backgroundColor': '#FFFFFF', # Fundo branco (estilo Card)
+            'backgroundColor': '#FFFFFF', 
             'borderRadius': '16px',       # Bordas arredondadas
-            'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.05)', # Sombra suave
+            'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.05)', 
             'padding': '32px 24px', 
             'flexShrink': '0', 
-            'marginRight': '32px',        # Empurra o conteúdo da direita para o lado
-            'height': 'fit-content'       # Faz a sidebar abraçar o conteúdo em vez de descer até o chão
+            'marginRight': '32px',        
+            'height': 'fit-content'      
         }),
         
-        # ── 2. ÁREA DE CONTEÚDO (Direita) ──
+      
         html.Div([
             
-           # ── Card de Filtros Globais ──
+        
             html.Div([
                 html.H3("Filtros Globais", style={
                     'marginTop': '0', 'fontSize': '18px', 'marginBottom': '20px', 
@@ -117,15 +115,15 @@ layout_eda = html.Div([
                 'backgroundColor': '#FFFFFF', 
                 'padding': '24px 32px', 
                 'borderRadius': '16px', 
-                'border': '1px solid #E5E7EB',                 # Borda cinza bem clara e sutil
-                'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.04)', # Sombra flutuante super suave
+                'border': '1px solid #E5E7EB',                 
+                'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.04)', 
                 'marginBottom': '24px'
             }),
 
-            # Output de Debug discreto
+            
             html.Div(id='debug-output', style={'fontSize': '13px', 'color': TEXT_MUTED, 'textAlign': 'right', 'marginBottom': '20px'}),
 
-            # ── Container das Seções ──
+            # Container das Seções
             html.Div([
                 html.Div(s51.get_layout(), id='section-s51'),
                 html.Div(s52.get_layout(), id='section-s52', style={'display': 'none'}),
@@ -144,7 +142,7 @@ layout_eda = html.Div([
 ], style={'backgroundColor': BG_MAIN, 'minHeight': '100vh', 'fontFamily': 'Segoe UI, sans-serif'})
 
 
-# ── REGISTRO DOS CALLBACKS DA PÁGINA EDA ──
+
 def register_eda_callbacks(app):
     
     @app.callback(
@@ -182,7 +180,7 @@ def register_eda_callbacks(app):
         sections = ['s51', 's52', 's53', 's54', 's55', 's56']
         return tuple({'display': 'block'} if selected == s else {'display': 'none'} for s in sections)
 
-    # ── Registrar os callbacks filhos ──
+   
     s51.register_callbacks(app)
     s52.register_callbacks(app)
     s53.register_callbacks(app)

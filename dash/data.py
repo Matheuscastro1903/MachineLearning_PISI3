@@ -8,7 +8,7 @@ def load_and_preprocess_data():
     
     df = df.dropna()
     
-    # Criação de Colunas Derivadas
+  
     expense_columns = [
         'Rent', 'Loan_Repayment', 'Insurance', 'Groceries', 
         'Transport', 'Eating_Out', 'Entertainment', 'Utilities', 
@@ -51,7 +51,6 @@ def load_and_preprocess_data():
 
 df_master = load_and_preprocess_data()
 
-# ── ADICIONE ESTAS 4 LINHAS NO FINAL DO ARQUIVO ──
 city_tiers = [str(c).replace('_', ' ') for c in df_master['City_Tier'].unique()]
 occupations = [str(o).replace('_', ' ') for o in df_master['Occupation'].unique()]
 min_income  = df_master['Income'].min()
