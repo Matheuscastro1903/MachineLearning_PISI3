@@ -179,6 +179,11 @@ def get_layout():
 def _gerar_scatter_ols(df):
     """Gera gráfico de dispersão com linha de tendência OLS (renda vs transporte)."""
     df_clean = df.dropna(subset=['Income', 'Transport']).copy()
+    
+    if len(df_clean) < 2:
+        return html.Div("Dados insuficientes para calcular a tendência OLS com os filtros atuais.", 
+                        style={'color': COLOR_ERROR, 'padding': '20px', 'textAlign': 'center', 'fontWeight': 'bold'})
+
     sample = df_clean.sample(min(2000, len(df_clean)), random_state=42)
 
     fig = px.scatter(
@@ -212,6 +217,11 @@ def _gerar_scatter_ols(df):
 def _gerar_boxplot_tier(df):
     """Gera boxplot do gasto com transporte por City Tier."""
     df_clean = df.dropna(subset=['City_Tier', 'Transport']).copy()
+    
+    if len(df_clean) < 1:
+        return html.Div("Sem dados para exibir com os filtros atuais.", 
+                        style={'color': COLOR_ERROR, 'padding': '20px', 'textAlign': 'center', 'fontWeight': 'bold'})
+
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
     ordem = ['Tier 1', 'Tier 2', 'Tier 3']
 
@@ -241,6 +251,11 @@ def _gerar_boxplot_tier(df):
 def _gerar_scatter_tier(df):
     """Gera gráfico de dispersão com linhas OLS por City Tier."""
     df_clean = df.dropna(subset=['City_Tier', 'Income', 'Transport']).copy()
+    
+    if len(df_clean) < 1:
+        return html.Div("Sem dados para exibir com os filtros atuais.", 
+                        style={'color': COLOR_ERROR, 'padding': '20px', 'textAlign': 'center', 'fontWeight': 'bold'})
+
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
     ordem = ['Tier 1', 'Tier 2', 'Tier 3']
     cores = ['#1D1252', '#594CA3', '#A095F8']
