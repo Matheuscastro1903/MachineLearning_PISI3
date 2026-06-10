@@ -15,7 +15,7 @@ BG_CARD = "#FFFFFF"
 BG_SIDEBAR = "#FFFFFF"
 TEXT_MAIN = "#000000"
 TEXT_MUTED = "#000000"
-BORDER_COLOR = "rgba(255, 255, 255, 0.1)"
+BORDER_COLOR = "rgba(0, 0, 0, 0.1)"
 
 
 layout_eda = html.Div([
@@ -112,11 +112,11 @@ layout_eda = html.Div([
                 ], style={'display': 'flex', 'gap': '24px', 'flexWrap': 'wrap'})
                 
             ], style={
-                'backgroundColor': '#FFFFFF', 
+                'backgroundColor': BG_CARD, 
                 'padding': '24px 32px', 
                 'borderRadius': '16px', 
-                'border': '1px solid #E5E7EB',                 
-                'boxShadow': '0 4px 20px rgba(0, 0, 0, 0.04)', 
+                'border': f'1px solid {BORDER_COLOR}',                 
+                'boxShadow': '0 2px 4px rgba(0,0,0,0.05)', 
                 'marginBottom': '24px'
             }),
 
@@ -139,7 +139,7 @@ layout_eda = html.Div([
         ], style={'flex': '1', 'padding': '40px', 'maxWidth': '1400px'})
 
     ], style={'display': 'flex', 'flexDirection': 'row', 'width': '100%'})
-], style={'backgroundColor': BG_MAIN, 'minHeight': '100vh', 'fontFamily': 'Segoe UI, sans-serif'})
+], style={'backgroundColor': 'transparent', 'minHeight': '100vh', 'fontFamily': 'Segoe UI, sans-serif'})
 
 
 

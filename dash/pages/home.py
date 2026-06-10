@@ -13,7 +13,6 @@ tela_home = html.Div(
         'padding': '120px 80px 80px 80px', 
         'position': 'relative',
         'overflow': 'hidden',
-        'boxShadow': '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         'fontFamily': '"Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         'margin': '0',
         'boxSizing': 'border-box' 
@@ -49,7 +48,7 @@ tela_home = html.Div(
                         'border': '1px solid rgba(255, 255, 255, 0.1)'
                     },
                     children=[
-                        html.Span(style={'width': '10px', 'height': '10px', 'borderRadius': '50%', 'backgroundColor': BRANCO}), # Ponto maior
+                        html.Span(style={'width': '10px', 'height': '10px', 'borderRadius': '50%', 'backgroundColor': '#4ADE80', 'boxShadow': '0 0 8px #4ADE80'}), # Ponto verde brilhante
                         html.Span("Algoritmo ao vivo", style={'fontSize': '14px', 'fontWeight': 'bold', 'letterSpacing': '2px'}) # Fonte maior
                     ]
                 ),
