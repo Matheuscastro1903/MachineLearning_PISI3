@@ -22,10 +22,9 @@ def card_metrica(titulo, media, std, min_val=None, max_val=None):
     return html.Div([
         html.H5(titulo, style={'margin': '0 0 10px 0', 'color': COLOR_PRIMARY, 'fontSize': '16px'}),
         html.Div(detalhes, style={'fontSize': '14px', 'color': COLOR_TEXT_MAIN, 'lineHeight': '1.6'})
-    ], style={
-        'backgroundColor': COLOR_BG, 'padding': '16px', 'borderRadius': '6px',
+    ], className='premium-card', style={
+        'backgroundColor': COLOR_BG, 'padding': '16px', 'borderRadius': '8px',
         'border': f'1px solid {COLOR_BORDER}', 'borderLeft': f'4px solid {COLOR_PRIMARY}',
-        'boxShadow': '0 1px 3px rgba(0,0,0,0.05)'
     })
 
 def card_categorico(titulo, categorias):
@@ -34,7 +33,7 @@ def card_categorico(titulo, categorias):
         html.H5(titulo, style={'margin': '0 0 8px 0', 'color': COLOR_TEXT_MAIN, 'fontSize': '15px'}),
         html.Span("Categórico (Object)", style={'backgroundColor': COLOR_BG, 'color': COLOR_PRIMARY, 'padding': '4px 8px', 'borderRadius': '4px', 'fontSize': '12px', 'fontWeight': 'bold'}),
         html.P(categorias, style={'marginTop': '12px', 'fontSize': '14px', 'color': COLOR_TEXT_MUTED})
-    ], style={'backgroundColor': COLOR_BG, 'padding': '16px', 'borderRadius': '6px', 'border': f'1px solid {COLOR_BORDER}'})
+    ], className='premium-card', style={'backgroundColor': COLOR_BG, 'padding': '16px', 'borderRadius': '8px', 'border': f'1px solid {COLOR_BORDER}'})
 
 
 sidebar_docs = html.Div([
