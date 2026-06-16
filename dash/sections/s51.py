@@ -136,16 +136,16 @@ def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
     """Gera apenas a figura Plotly, sem textos dinâmicos."""
     
     fig = px.violin(
-        df.sample(min(300, len(df)), random_state=42).reset_index(drop=True), x=var_x, y=var_y, 
-        color_discrete_sequence=[COLOR_PLOT_FILL], 
-        box=True, points='all', 
+        df.sample(min(300, len(df)), random_state=42).reset_index(drop=True), x=var_x, y=var_y,
+        box=True, points='all',
         category_orders={var_x: order_cat} if order_cat else None,
         labels={var_x: labels_x, var_y: "% de Economia Supérflua"},
         title=titulo
     )
 
     fig.update_traces(
-        scalemode='count', opacity=0.6, line_width=1.5, line_color='black', 
+        fillcolor=COLOR_PLOT_FILL,
+        scalemode='count', opacity=0.6, line_width=1.5, line_color='black',
         meanline_visible=True, meanline_width=3, marker=dict(opacity=0.3, size=3)
     )
 
@@ -153,7 +153,7 @@ def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
     )

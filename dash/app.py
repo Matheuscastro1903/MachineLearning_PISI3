@@ -7,6 +7,7 @@ from sections import s51, s52, s53, s54, s55, s56_m1
 from pages.home import tela_home
 from pages.documentacao import conteudo_docs
 from pages.analise import layout_eda,register_eda_callbacks
+from pages.ml import layout as layout_ml, register_ml_callbacks
 
 app = dash.Dash(__name__, title="ThinkMoney Dashboard", suppress_callback_exceptions=True)
 
@@ -79,7 +80,7 @@ def mudar_pagina(b0, b1, b2, b3, b4, b5, b6):
         
     elif botao_clicado == 'btn-ml' or botao_clicado == 'btn-home-ml':
         c_ml = 'nav-btn-active'
-        return s56_m1.layout, c_home, c_docs, c_eda, c_ml
+        return layout_ml, c_home, c_docs, c_eda, c_ml
 
     elif botao_clicado == 'btn-docs':
         c_docs = 'nav-btn-active'
@@ -90,6 +91,7 @@ def mudar_pagina(b0, b1, b2, b3, b4, b5, b6):
         return tela_home, c_home, c_docs, c_eda, c_ml
 
 register_eda_callbacks(app)
+register_ml_callbacks(app)
 
 if __name__ == '__main__':
     app.run(debug=True)
