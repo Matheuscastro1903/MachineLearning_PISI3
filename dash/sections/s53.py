@@ -265,7 +265,7 @@ def _layout_padrao(fig, hovermode="x unified", showlegend=False):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode=hovermode,
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=showlegend,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
@@ -281,7 +281,6 @@ def _gerar_bar_renda_idade(df):
     fig = px.bar(
         avg, x='Age_Group_5', y='Income',
         text=avg['Income'].apply(lambda v: f'R${v:,.0f}'),
-        color_discrete_sequence=[COLOR_PLOT_FILL],
         labels={'Age_Group_5': 'Faixa Etária', 'Income': 'Renda Média (R$)'},
         title='Renda Média por Faixa Etária',
         category_orders={'Age_Group_5': AGE_LABELS}
@@ -314,7 +313,6 @@ def _gerar_bar_gastos_fixos(df):
     fig = px.bar(
         avg, x='City_Tier', y='Fixed_Ratio',
         text=avg['Fixed_Ratio'].apply(lambda v: f'{v:.1%}' if pd.notna(v) else ''),
-        color_discrete_sequence=[COLOR_ACCENT],
         labels={'City_Tier': 'Nível da Cidade', 'Fixed_Ratio': 'Gastos Fixos / Renda'},
         title='Comprometimento Médio da Renda com Gastos Fixos por City Tier',
         category_orders={'City_Tier': TIER_ORDER}
@@ -347,7 +345,7 @@ def _gerar_heatmap_correlacao(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=80, l=80, r=20),
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
     )
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 
@@ -376,7 +374,7 @@ def _gerar_heatmap_renda_disponivel(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=80, r=20),
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
     )
     return dcc.Graph(figure=fig, config={'displayModeBar': False})
 

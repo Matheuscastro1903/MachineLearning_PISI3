@@ -265,3 +265,45 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
 }
+/* ── Machine Learning — Tabs ── */
+.custom-tab {
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid transparent !important;
+    color: #888 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    padding: 14px 24px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.custom-tab:hover {
+    color: #1D1252 !important;
+    background-color: rgba(29,18,82,0.04) !important;
+}
+
+.custom-tab-selected {
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: 3px solid #1D1252 !important;
+    color: #1D1252 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    padding: 14px 24px !important;
+}
+
+.tab-content {
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* Remove spinners nativos dos campos numéricos — usamos botões customizados */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type=number] {
+    -moz-appearance: textfield;
+}
