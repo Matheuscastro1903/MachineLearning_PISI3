@@ -136,7 +136,7 @@ def _gerar_apenas_grafico(df, var_x, var_y, labels_x, titulo, order_cat=None):
     """Gera apenas a figura Plotly, sem textos dinâmicos."""
     
     fig = px.violin(
-        df, x=var_x, y=var_y, 
+        df.sample(min(300, len(df)), random_state=42).reset_index(drop=True), x=var_x, y=var_y, 
         color_discrete_sequence=[COLOR_PLOT_FILL], 
         box=True, points='all', 
         category_orders={var_x: order_cat} if order_cat else None,
