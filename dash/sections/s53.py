@@ -295,7 +295,7 @@ def _gerar_box_ocupacao(df):
     df_plot = df.dropna(subset=['Occupation', 'Income']).copy()
 
     fig = px.box(
-        df_plot, x='Occupation', y='Income',
+        df_plot.sample(min(300, len(df_plot)), random_state=42).reset_index(drop=True), x='Occupation', y='Income',
         color='Occupation',
         color_discrete_sequence=SEQ_COLORS,
         labels={'Occupation': 'Ocupação', 'Income': 'Renda (R$)'},

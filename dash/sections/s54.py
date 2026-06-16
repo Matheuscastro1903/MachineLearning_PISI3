@@ -214,7 +214,7 @@ def _gerar_boxplot(df):
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
 
     fig = px.box(
-        df_clean, x='City_Tier_Label', y='Rent',
+        df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True), x='City_Tier_Label', y='Rent',
         color='City_Tier_Label',
         color_discrete_sequence=SEQ_COLORS,
         category_orders={'City_Tier_Label': TIERS},
@@ -240,7 +240,7 @@ def _gerar_violin(df):
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
 
     fig = px.violin(
-        df_clean, x='City_Tier_Label', y='Rent',
+        df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True), x='City_Tier_Label', y='Rent',
         color='City_Tier_Label',
         color_discrete_sequence=SEQ_COLORS,
         box=True, points=False,

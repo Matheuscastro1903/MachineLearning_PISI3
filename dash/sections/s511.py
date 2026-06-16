@@ -88,7 +88,7 @@ def register_callbacks(app):
         color_discrete_sequence = ['#1D1252', '#3A2E7A', '#594CA3', '#7B6FCD', '#A095F8']
 
         fig = px.violin(
-            dff, x=group_var, y='Waste_Ratio', color=group_var,
+            dff.sample(min(300, len(dff)), random_state=42).reset_index(drop=True), x=group_var, y='Waste_Ratio', color=group_var,
             box=True, points='outliers', category_orders=cat_order,
             color_discrete_sequence=color_discrete_sequence,
             labels={'Waste_Ratio': 'Gasto Evitável (%)', group_var: labels.get(group_var, group_var)},
