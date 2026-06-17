@@ -215,23 +215,23 @@ def _build_static_charts():
 
         X_arr = X.to_numpy(dtype=float)
 
-        # ── 1. Matriz de Correlação ───────────────────────────────────────
-        corr       = X.corr().round(2)
-        feat_labels = [f.replace('_', ' ') for f in FEATURES]
+        # ── 1. Matriz de Correlação (Bloco 15) ───────────────────────────
+        corr_matrix = X.corr().round(2)
+        feat_labels  = [f.replace('_', ' ') for f in FEATURES]
 
         corr_fig = px.imshow(
-            corr.values,
+            corr_matrix.values,
             x=feat_labels, y=feat_labels,
             text_auto='.2f',
             color_continuous_scale='RdYlGn',
             range_color=[-1, 1],
-            title='Gráfico 1 — Matriz de Correlação das 11 Features Preditoras',
+            title='Matriz de Correlação entre Features',
         )
         corr_fig.update_layout(
             paper_bgcolor='white', plot_bgcolor='white',
-            height=520, margin=dict(t=60, b=80, l=140, r=40),
-            font=dict(size=11, family='Segoe UI'),
-            title_font_size=13,
+            height=540, margin=dict(t=60, b=80, l=140, r=40),
+            font=dict(size=8, family='Segoe UI'),
+            title_font_size=14,
             coloraxis_colorbar=dict(title='r'),
         )
         corr_fig.update_xaxes(tickangle=-40)
@@ -258,30 +258,30 @@ def _build_static_charts():
         prob_test = 1.0 / (1.0 + np.exp(-z_test))
         y_pred   = (prob_test >= 0.5).astype(int)
 
-        # ── 2. Matriz de Confusão ─────────────────────────────────────────
+        # ── 2. Matriz de Confusão (Bloco 21) ─────────────────────────────
         tn = int(((y_test == 0) & (y_pred == 0)).sum())
         fp = int(((y_test == 0) & (y_pred == 1)).sum())
         fn = int(((y_test == 1) & (y_pred == 0)).sum())
         tp = int(((y_test == 1) & (y_pred == 1)).sum())
         recall_vuln = tp / (tp + fn) if (tp + fn) > 0 else 0
 
-        lbs    = ['Seguro (0)', 'Vulnerável (1)']
-        cm_z   = [[tn, fp], [fn, tp]]
-        cm_txt = [[f'TN = {tn:,}', f'FP = {fp:,}'], [f'FN = {fn:,}', f'TP = {tp:,}']]
+        lbs   = ['Seguro', 'Vulnerável']
+        cm_z  = [[tn, fp], [fn, tp]]
+        cm_txt = [[f'{tn:,}', f'{fp:,}'], [f'{fn:,}', f'{tp:,}']]
 
         cm_fig = go.Figure(go.Heatmap(
             z=cm_z, x=lbs, y=lbs,
             text=cm_txt, texttemplate='<b>%{text}</b>',
             colorscale='Blues', showscale=True,
-            hovertemplate='Real: %{y}<br>Previsto: %{x}<br>%{text}<extra></extra>',
+            hovertemplate='Real: %{y}<br>Previsto: %{x}<br>Count: %{text}<extra></extra>',
         ))
         cm_fig.update_layout(
-            title='Figura 17 — Matriz de Confusão, Regressão Logística',
+            title='Matriz de Confusão — Regressão Logística',
             xaxis_title='Previsto pelo Modelo',
-            yaxis_title='Rótulo Real',
+            yaxis_title='Real',
             paper_bgcolor='white', plot_bgcolor='white',
             height=420, font=dict(size=12, family='Segoe UI'),
-            title_font_size=13,
+            title_font_size=14,
             margin=dict(t=60, b=80, l=120, r=40),
             annotations=[dict(
                 text=f'Recall Vulnerável: {recall_vuln*100:.1f}%   |   '
@@ -363,6 +363,397 @@ def _build_static_charts():
 _CORR_FIG, _CM_FIG, _SHAP_FIG, _PARETO_FIG = _build_static_charts()
 
 _GRAPH_CFG = {'displayModeBar': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']}
+
+# ─── Pré-computação dos gráficos de clusterização ────────────────────────────
+CLUSTER_MODEL_PATH = os.path.join(
+    ROOT_DIR, '..', 'modelos', 'modelo_clusterizacao', 'modelo_kmeans_personas.pkl'
+)
+
+def _build_cluster_charts():
+    """
+    Gera os 8 gráficos interativos de clusterização no startup.
+    Usa sklearn (disponível no venv) + pandas + plotly.
+    Retorna: (pca_var_fig, corr_fig, kdist_fig, elbow_fig,
+               sil_fig, viz2d_fig, shap_fig, pareto_fig)
+    """
+    from sklearn.decomposition import PCA as _PCA
+    from sklearn.neighbors import NearestNeighbors as _NN
+    from sklearn.metrics import silhouette_samples as _sil_samples
+    from sklearn.ensemble import RandomForestClassifier as _RF
+    from plotly.subplots import make_subplots
+
+    _ph = go.Figure().update_layout(
+        paper_bgcolor='white', height=360,
+        annotations=[dict(text='Dados de clusterização não disponíveis',
+                          x=0.5, y=0.5, xref='paper', yref='paper',
+                          showarrow=False, font=dict(size=13, color='#aaa'))],
+        margin=dict(t=20, b=20, l=20, r=20),
+    )
+
+    try:
+        art    = joblib.load(CLUSTER_MODEL_PATH)
+        scaler = art['scaler']
+        pca_model  = art['pca']      # 6 componentes (85% variância)
+        kmeans     = art['modelo']   # K=5
+        feat_names = art['feature_names']
+        personas   = art['personas']
+
+        CL_COLORS = {0: '#4C9BE8', 1: '#E8834C', 2: '#4CAF50', 3: '#9B59B6', 4: '#E74C3C'}
+        CL_NAMES  = {k: v['nome'] for k, v in personas.items()}
+        feat_labels = [f.replace('_', ' ') for f in feat_names]
+
+        # Carregar e preparar dados
+        df = pd.read_parquet(DATA_PATH)
+        city_map = {'Tier_1': 3, 'Tier_2': 2, 'Tier_3': 1}
+        df['City_Tier_enc'] = df['City_Tier'].map(city_map)
+
+        df_modelo = pd.DataFrame({
+            'Rent_pct':            df['Rent'] / df['Income'],
+            'Loan_Repayment_pct':  df['Loan_Repayment'] / df['Income'],
+            'Disposable_pct':      df['Disposable_Income'] / df['Income'],
+            'Desired_Savings_pct': df['Desired_Savings_Percentage'] / 100,
+            'Age':                 df['Age'],
+            'Dependents':          df['Dependents'],
+            'Gap_Poupanca':        df['Desired_Savings_Percentage'] / 100
+                                   - df['Disposable_Income'] / df['Income'],
+            'City_Tier_enc':       df['City_Tier_enc'],
+            'Gastos_Consumo_pct':  (df['Groceries'] + df['Eating_Out'] + df['Entertainment']) / df['Income'],
+            'Gastos_Fixos_pct':    (df['Insurance'] + df['Transport'] + df['Healthcare']) / df['Income'],
+        })
+
+        df_norm     = scaler.transform(df_modelo)
+        df_pca_full = pca_model.transform(df_norm)   # (20000, 6)
+        labels      = kmeans.predict(df_pca_full)     # (20000,)
+
+        _ly = dict(paper_bgcolor='white', plot_bgcolor='white',
+                   font=dict(size=12, family='Segoe UI'), title_font_size=13)
+
+        # ── 1. PCA: Variância Acumulada (bloco 1.7) ───────────────────────────
+        pca_full = _PCA()
+        pca_full.fit(df_norm)
+        var_acum = pca_full.explained_variance_ratio_.cumsum() * 100
+        n_comps  = list(range(1, len(var_acum) + 1))
+
+        pca_fig = go.Figure()
+        pca_fig.add_trace(go.Scatter(
+            x=n_comps, y=var_acum.tolist(), mode='lines+markers',
+            line=dict(color=ROXO, width=2.5), marker=dict(size=8),
+            name='Variância Acumulada',
+            hovertemplate='<b>%{x} componentes</b><br>Variância: %{y:.1f}%<extra></extra>',
+        ))
+        pca_fig.add_hline(y=85, line_dash='dash', line_color='red',
+                          annotation_text='85%', annotation_position='top right')
+        pca_fig.add_hline(y=95, line_dash='dash', line_color='green',
+                          annotation_text='95%', annotation_position='top right')
+        pca_fig.update_layout(
+            **_ly, title='Gráfico 1.7 — Variância Acumulada pelo PCA',
+            xaxis_title='Número de Componentes', yaxis=dict(title='Variância Acumulada (%)', range=[0, 106]),
+            height=400, margin=dict(t=60, b=50, l=80, r=60),
+        )
+        pca_fig.update_xaxes(showgrid=True, gridcolor='#f0f0f0', dtick=1)
+        pca_fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+
+        # ── 2. Correlação das Features Transformadas (bloco 1.6) ──────────────
+        corr_cl   = df_modelo.corr().round(2)
+        cl_labels = [f.replace('_', ' ') for f in df_modelo.columns]
+
+        corr_cl_fig = px.imshow(
+            corr_cl.values, x=cl_labels, y=cl_labels,
+            text_auto='.2f', color_continuous_scale='RdYlGn', range_color=[-1, 1],
+            title='Gráfico 1.6 — Correlação das Features Transformadas (Clusterização)',
+        )
+        corr_cl_fig.update_layout(
+            **_ly, height=520, margin=dict(t=60, b=80, l=170, r=40),
+            coloraxis_colorbar=dict(title='r'),
+        )
+        corr_cl_fig.update_xaxes(tickangle=-40)
+        corr_cl_fig.update_traces(
+            hovertemplate='<b>%{y}</b> ↔ <b>%{x}</b><br>r = %{z:.2f}<extra></extra>'
+        )
+
+        # ── 3. K-Distance — Epsilon DBSCAN (bloco 2.1) ───────────────────────
+        nn   = _NN(n_neighbors=12)
+        nn.fit(df_pca_full)
+        dist, _ = nn.kneighbors(df_pca_full)
+        dist_sorted = np.sort(dist[:, 11])
+
+        kdist_fig = go.Figure()
+        kdist_fig.add_trace(go.Scatter(
+            x=list(range(len(dist_sorted))), y=dist_sorted.tolist(),
+            mode='lines', line=dict(color=ROXO, width=1.5),
+            name='Distância ao 12º vizinho',
+            hovertemplate='Ponto %{x}<br>Distância: %{y:.3f}<extra></extra>',
+        ))
+        kdist_fig.add_hline(y=0.70, line_dash='dash', line_color=ERROR,
+                            annotation_text='ε = 0.70 (selecionado)',
+                            annotation_position='top right')
+        kdist_fig.update_layout(
+            **_ly, title='Gráfico 2.1 — K-Distance: Descobrindo o Epsilon Ideal',
+            xaxis_title='Pontos ordenados',
+            yaxis_title='Distância ao 12º vizinho mais próximo',
+            height=400, margin=dict(t=60, b=50, l=80, r=60),
+        )
+        kdist_fig.update_xaxes(showgrid=True, gridcolor='#f0f0f0')
+        kdist_fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+
+        # ── 4. Elbow + Silhouette Score (bloco 3.1) — hardcoded do notebook ───
+        K_range     = list(range(2, 11))
+        inertias    = [64141, 56470, 51190, 46746, 42896, 40692, 39120, 37506, 36251]
+        silhouettes = [0.2290, 0.2105, 0.2214, 0.2163, 0.1847, 0.1733, 0.1701, 0.1600, 0.1590]
+
+        elbow_fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=('Método do Cotovelo (Elbow)', 'Silhouette Score'),
+        )
+        elbow_fig.add_trace(go.Scatter(
+            x=K_range, y=inertias, mode='lines+markers',
+            line=dict(color='steelblue', width=2.5), marker=dict(size=8),
+            name='Inércia',
+            hovertemplate='K=%{x}<br>Inércia: %{y:,.0f}<extra></extra>',
+        ), row=1, col=1)
+        elbow_fig.add_trace(go.Scatter(
+            x=K_range, y=silhouettes, mode='lines+markers',
+            line=dict(color=ERROR, width=2.5),
+            marker=dict(size=8, symbol='square', color=ERROR),
+            name='Silhouette',
+            hovertemplate='K=%{x}<br>Silhouette: %{y:.4f}<extra></extra>',
+        ), row=1, col=2)
+        elbow_fig.add_vline(x=5, line_dash='dash', line_color='gray',
+                            annotation_text='K=5', annotation_position='top right')
+        elbow_fig.update_layout(
+            **_ly, title='Gráfico 3.1 — Método do Cotovelo e Silhouette Score',
+            height=420, margin=dict(t=70, b=60, l=70, r=40),
+            legend=dict(orientation='h', y=-0.2),
+        )
+        elbow_fig.update_xaxes(showgrid=True, gridcolor='#f0f0f0', dtick=1,
+                               title_text='Número de Clusters (K)')
+        elbow_fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+        elbow_fig.update_yaxes(title_text='Inércia', row=1, col=1)
+        elbow_fig.update_yaxes(title_text='Score', row=1, col=2)
+
+        # ── 5. Silhouette Diagram K=3,4,5 (bloco 3.2) ───────────────────────
+        from matplotlib import cm as _mpl_cm
+        import matplotlib.colors as _mcolors
+        from sklearn.cluster import KMeans as _KMeans
+
+        def _nipy_hex(i, k):
+            return _mcolors.to_hex(_mpl_cm.nipy_spectral(float(i) / k))
+
+        sil_fig = make_subplots(
+            rows=1, cols=3,
+            subplot_titles=['K = 3', 'K = 4', 'K = 5'],
+        )
+        _xrefs = ['x', 'x2', 'x3']
+        _yrefs = ['y', 'y2', 'y3']
+
+        for col_idx, k in enumerate([3, 4, 5], start=1):
+            km_k    = _KMeans(n_clusters=k, init='k-means++', random_state=42, n_init=10)
+            lbl_k   = km_k.fit_predict(df_pca_full)
+            sv_k    = _sil_samples(df_pca_full, lbl_k)
+            avg_k   = float(sv_k.mean())
+            y_lower = 10
+
+            for i in range(k):
+                cl_vals = np.sort(sv_k[lbl_k == i])
+                n_cl    = len(cl_vals)
+                y_upper = y_lower + n_cl
+                col_hex = _nipy_hex(i, k)
+                y_pts   = np.linspace(y_lower, y_upper, n_cl)
+
+                x_fill = np.concatenate([[0], cl_vals, [0, 0]])
+                y_fill = np.concatenate([[y_lower], y_pts, [y_upper, y_lower]])
+
+                sil_fig.add_trace(go.Scatter(
+                    x=x_fill.tolist(), y=y_fill.tolist(),
+                    fill='toself', fillcolor=col_hex, opacity=0.7,
+                    line=dict(color=col_hex, width=0.5),
+                    name=f'K={k} Cl{i}', showlegend=False,
+                    hovertemplate=(f'K={k} Cluster {i}<br>'
+                                   'Silhouette: %{x:.3f}<extra></extra>'),
+                ), row=1, col=col_idx)
+
+                sil_fig.add_annotation(
+                    x=-0.07, y=y_lower + 0.5 * n_cl,
+                    xref=_xrefs[col_idx - 1], yref=_yrefs[col_idx - 1],
+                    text=str(i), showarrow=False,
+                    font=dict(size=11, color=col_hex, family='Segoe UI'),
+                )
+                y_lower = y_upper + 10
+
+            sil_fig.add_vline(
+                x=avg_k, line_dash='dash', line_color='red', col=col_idx, row=1,
+                annotation_text=f'Média: {avg_k:.3f}',
+                annotation_position='top right',
+            )
+
+        sil_fig.update_layout(
+            **_ly,
+            title='Gráfico 3.2 — Silhouette Diagram — Comparação de K',
+            height=500, margin=dict(t=80, b=50, l=60, r=40),
+        )
+        sil_fig.update_xaxes(
+            range=[-0.15, 1], showgrid=True, gridcolor='#f0f0f0',
+            title_text='Silhouette coefficient',
+        )
+        sil_fig.update_yaxes(showticklabels=False, showgrid=False)
+
+        # ── 6. Visualização 2D dos dados (bloco 1.8) ─────────────────────────
+        pca2d  = _PCA(n_components=2, random_state=42)
+        df_2d  = pca2d.fit_transform(df_norm)
+
+        viz2d_fig = go.Figure(go.Scatter(
+            x=df_2d[:, 0].tolist(), y=df_2d[:, 1].tolist(),
+            mode='markers',
+            marker=dict(color='steelblue', size=3, opacity=0.3),
+            hovertemplate='PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>',
+        ))
+        viz2d_fig.update_layout(
+            **_ly,
+            title='Visualização 2D dos dados (PCA)',
+            xaxis_title='Componente Principal 1',
+            yaxis_title='Componente Principal 2',
+            height=500, margin=dict(t=60, b=60, l=70, r=40),
+        )
+        viz2d_fig.update_xaxes(showgrid=True, gridcolor='#f0f0f0')
+        viz2d_fig.update_yaxes(showgrid=True, gridcolor='#f0f0f0')
+
+        # ── 7. SHAP Beeswarm Global (bloco 3.10.1) ────────────────────────────
+        import shap as _shap
+
+        rng_s      = np.random.RandomState(42)
+        sample_idx = rng_s.choice(len(df_modelo), 2000, replace=False)
+        X_smp      = df_modelo.iloc[sample_idx]
+        lbl_smp    = labels[sample_idx]
+
+        rf = _RF(n_estimators=100, random_state=42, n_jobs=-1, max_depth=10)
+        rf.fit(X_smp, lbl_smp)
+
+        explainer   = _shap.TreeExplainer(rf)
+        shap_raw    = explainer.shap_values(X_smp)   # (2000, 10, 5)
+        shap_arr    = np.array(shap_raw)
+        shap_mean   = shap_arr.mean(axis=2)           # (2000, 10) média sobre classes
+
+        mean_abs    = np.abs(shap_mean).mean(axis=0)  # (10,) importância por feature
+        feat_order  = np.argsort(mean_abs)            # crescente → fundo-para-cima
+
+        rng_b = np.random.RandomState(0)
+        all_x, all_y, all_color = [], [], []
+        for rank, fi in enumerate(feat_order):
+            x_vals    = shap_mean[:, fi]
+            fv        = X_smp.iloc[:, fi].values
+            fv_range  = fv.max() - fv.min()
+            fv_norm   = (fv - fv.min()) / fv_range if fv_range > 0 else np.full_like(fv, 0.5)
+            jitter    = rng_b.uniform(-0.38, 0.38, len(x_vals))
+            all_x.extend(x_vals.tolist())
+            all_y.extend((rank + jitter).tolist())
+            all_color.extend(fv_norm.tolist())
+
+        shap_cl_fig = go.Figure(go.Scatter(
+            x=all_x, y=all_y,
+            mode='markers',
+            marker=dict(
+                size=3, opacity=0.55,
+                color=all_color,
+                colorscale=[[0, '#3182bd'], [0.5, '#bdbdbd'], [1, '#e6550d']],
+                cmin=0, cmax=1,
+                colorbar=dict(
+                    title='Feature<br>value',
+                    tickvals=[0.05, 0.95], ticktext=['Low', 'High'],
+                    len=0.5, y=0.5, thickness=14,
+                ),
+            ),
+            hovertemplate='SHAP: %{x:.6f}<extra></extra>',
+        ))
+        shap_cl_fig.update_layout(
+            **_ly,
+            title=('SHAP Beeswarm Global — Importância das Variáveis<br>'
+                   '<sup>(Surrogate RandomForest sobre K-Means++)</sup>'),
+            xaxis_title='SHAP value (impact on model output)',
+            yaxis=dict(
+                tickvals=list(range(len(feat_names))),
+                ticktext=[feat_names[fi].replace('_', ' ') for fi in feat_order],
+                showgrid=False,
+            ),
+            height=480, margin=dict(t=80, b=60, l=160, r=80),
+            showlegend=False,
+        )
+        shap_cl_fig.update_xaxes(
+            showgrid=True, gridcolor='#f0f0f0',
+            zeroline=True, zerolinecolor='#cccccc', zerolinewidth=1,
+        )
+
+        # ── 8. Pareto por Cluster com eixo Y duplo (bloco 3.8) ────────────────
+        colunas_pareto = ['Rent_pct', 'Loan_Repayment_pct',
+                          'Gastos_Consumo_pct', 'Gastos_Fixos_pct']
+        cores_pareto   = ['steelblue', 'coral', 'green', 'purple', 'orange']
+        df_m_tmp       = df_modelo.copy()
+        df_m_tmp['_Cluster'] = labels
+
+        specs_p = [[{"secondary_y": True}] * 3,
+                   [{"secondary_y": True}, {"secondary_y": True}, {}]]
+        pareto_fig = make_subplots(
+            rows=2, cols=3,
+            specs=specs_p,
+            subplot_titles=[f'Pareto — Cluster {i}' for i in range(5)] + [''],
+        )
+        row_col = [(1,1),(1,2),(1,3),(2,1),(2,2)]
+
+        for i, (r, c) in enumerate(row_col):
+            dados      = df_m_tmp[df_m_tmp['_Cluster'] == i][colunas_pareto].mean()
+            dados_sort = dados.abs().sort_values(ascending=False)
+            pct        = (dados_sort / dados_sort.sum() * 100).values
+            cum        = np.cumsum(pct)
+            lbls       = [x for x in dados_sort.index.tolist()]
+
+            pareto_fig.add_trace(go.Bar(
+                x=lbls, y=pct.tolist(),
+                marker_color=cores_pareto[i], opacity=0.7,
+                name=f'Cluster {i}', showlegend=False,
+                hovertemplate='<b>%{x}</b><br>%{y:.1f}% do total<extra></extra>',
+            ), row=r, col=c, secondary_y=False)
+
+            pareto_fig.add_trace(go.Scatter(
+                x=lbls, y=cum.tolist(),
+                mode='lines+markers',
+                line=dict(color='black', width=2),
+                marker=dict(size=6, color='black'),
+                name='Cumulativo', showlegend=(i == 0),
+                hovertemplate='<b>%{x}</b><br>Cumulativo: %{y:.1f}%<extra></extra>',
+            ), row=r, col=c, secondary_y=True)
+
+            pareto_fig.add_trace(go.Scatter(
+                x=lbls, y=[80] * len(lbls),
+                mode='lines', line=dict(color='red', dash='dash', width=1.5),
+                name='80%', showlegend=(i == 0), hoverinfo='skip',
+            ), row=r, col=c, secondary_y=True)
+
+            pareto_fig.update_yaxes(
+                title_text='% do total', row=r, col=c, secondary_y=False,
+            )
+            pareto_fig.update_yaxes(
+                range=[0, 110], title_text='% acumulado',
+                row=r, col=c, secondary_y=True,
+            )
+
+        pareto_fig.update_layout(
+            **_ly,
+            title='Gráfico 3.8 — Princípio de Pareto: Comprometimento Financeiro por Persona',
+            height=820, margin=dict(t=80, b=100, l=60, r=60),
+            legend=dict(orientation='h', y=-0.06),
+        )
+        pareto_fig.update_xaxes(tickangle=-45)
+
+        return (pca_fig, corr_cl_fig, kdist_fig, elbow_fig,
+                sil_fig, viz2d_fig, shap_cl_fig, pareto_fig)
+
+    except Exception:
+        import traceback; traceback.print_exc()
+        return (_ph,) * 8
+
+
+(_CLUST_PCA_FIG, _CLUST_CORR_FIG, _CLUST_KDIST_FIG, _CLUST_ELBOW_FIG,
+ _CLUST_SIL_FIG,  _CLUST_2D_FIG,   _CLUST_SHAP_FIG,  _CLUST_PARETO_FIG
+ ) = _build_cluster_charts()
 
 
 def kdd_tag(step):
@@ -696,8 +1087,8 @@ def classif_resultados():
         html.Div([
             html.H3('Interpretabilidade, Matriz de Confusão', style=H3),
             html.P(
-                'O modelo alcançou Recall de 0,92, identificando corretamente 837 dos 906 clientes '
-                'vulneráveis reais. Os 69 casos restantes (8%) representam falsos negativos. '
+                'O modelo alcançou Recall de 0,92, identificando corretamente 842 dos 906 clientes '
+                'vulneráveis reais. Os 64 casos restantes (7%) representam falsos negativos. '
                 'Na prática, a cada 10 clientes vulneráveis o modelo acerta aproximadamente 9.',
                 style=P_STYLE
             ),
@@ -940,11 +1331,8 @@ def cluster_processamento():
                 'da segmentação, indicando que as componentes principais capturam estrutura '
                 'latente mais relevante do que as variáveis originais.'
             ], border_color=SUCCESS),
-            section_img(
-                '/assets/pca.png',
-                'Gráfico 27, Visualização 2D dos clusters K-Means++ por projeção PCA.',
-                max_width='680px'
-            ),
+            dcc.Graph(id='cl-pca-var-fig', figure=_CLUST_PCA_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
         ], style=CARD),
     ])
 
@@ -999,11 +1387,8 @@ def cluster_transformacao():
                 'presente nas variáveis brutas.',
                 style=P_STYLE
             ),
-            section_img(
-                '/assets/correlacao-cluster.png',
-                'Gráfico 4, Matriz de correlação das features transformadas (clustering).',
-                max_width='680px'
-            ),
+            dcc.Graph(id='cl-corr-fig', figure=_CLUST_CORR_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
         ], style=CARD),
     ])
 
@@ -1047,11 +1432,8 @@ def cluster_mineracao():
             ], style={'paddingLeft': '20px', 'lineHeight': '1.8', 'fontSize': '15px', 'marginBottom': '20px'}),
             html.H4('Teste de Múltiplos Valores de Epsilon (Tabela 7)', style={'color': TEXT_MAIN, 'marginBottom': '12px'}),
             html_table(eps_headers, eps_rows, highlight_row=1),
-            section_img(
-                '/assets/epsilon.png',
-                'Gráfico 5, K-Distance para determinação do epsilon ideal.',
-                max_width='620px'
-            ),
+            dcc.Graph(id='cl-kdist-fig', figure=_CLUST_KDIST_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
             info_box([
                 html.Strong('eps = 0,70 selecionado: '),
                 'Melhor equilíbrio entre granularidade (5 clusters) e representatividade (apenas 6,0% de ruído). '
@@ -1081,11 +1463,8 @@ def cluster_mineracao():
                     html.Div('Visualização individual por cluster para detectar grupos subótimos.', style={'color': TEXT_MUTED, 'fontSize': '13px'}),
                 ], style={'padding': '16px', 'backgroundColor': BG_PAGE, 'borderRadius': '8px', 'flex': '1'}),
             ], style={'display': 'flex', 'gap': '12px', 'flexWrap': 'wrap', 'marginBottom': '20px'}),
-            section_img(
-                '/assets/silhouette-cotovelo.png',
-                'Gráfico 6, Método do Cotovelo e Silhouette Score para seleção de K.',
-                max_width='700px'
-            ),
+            dcc.Graph(id='cl-elbow-fig', figure=_CLUST_ELBOW_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
             html.H4('Silhouette Diagram por Cluster (Gráfico 21)', style={'color': ROXO, 'marginTop': '20px', 'marginBottom': '10px'}),
             html.P(
                 'O Silhouette Diagram detalha a largura de silhouette individual de cada amostra '
@@ -1093,11 +1472,8 @@ def cluster_mineracao():
                 'K=5 produz separação homogênea sem clusters dominantes ou degenerados.',
                 style=P_STYLE
             ),
-            section_img(
-                '/assets/silhouette-diagram-correto.png',
-                'Gráfico 21, Silhouette Diagram por cluster (K-Means++).',
-                max_width='700px'
-            ),
+            dcc.Graph(id='cl-sil-fig', figure=_CLUST_SIL_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
         ], style=CARD),
 
     ])
@@ -1253,11 +1629,8 @@ def cluster_resultados():
                 'captura estruturas reais nos dados, não artefatos do algoritmo.',
                 style=P_STYLE
             ),
-            section_img(
-                '/assets/visualizacao-2d-correto.png',
-                'Gráfico 27, Visualização 2D dos clusters K-Means++ por projeção PCA.',
-                max_width='680px'
-            ),
+            dcc.Graph(id='cl-2d-fig', figure=_CLUST_2D_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
 
             html.H3('Interpretabilidade, Modelo Surrogate (Random Forest + SHAP)', style={**H3, 'marginTop': '24px'}),
             html.P(
@@ -1267,29 +1640,27 @@ def cluster_resultados():
                 style=P_STYLE
             ),
 
-            html.Div([
-                html.Div([
-                    html.H4('SHAP Global, Importância das Variáveis (Gráfico 30)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
-                    html.P(
-                        'Gap_Poupanca, Disposable_pct, Rent_pct, Loan_Repayment_pct e City_Tier_enc '
-                        'são as variáveis discriminantes de maior impacto. As 5 personas se diferenciam '
-                        'principalmente nas dimensões de folga de renda e comprometimento com aluguel e dívida.',
-                        style={**P_STYLE, 'marginBottom': '12px'}
-                    ),
-                    section_img('/assets/cluster_shap.png', 'Gráfico 30, SHAP Global do modelo K-Means++.', max_width='100%'),
-                ], style={'flex': '1', 'minWidth': '280px'}),
+            html.H4('SHAP Global, Importância das Variáveis (Gráfico 30)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
+            html.P(
+                'Gap_Poupanca, Disposable_pct, Rent_pct, Loan_Repayment_pct e City_Tier_enc '
+                'são as variáveis discriminantes de maior impacto. As 5 personas se diferenciam '
+                'principalmente nas dimensões de folga de renda e comprometimento com aluguel e dívida.',
+                style={**P_STYLE, 'marginBottom': '12px'}
+            ),
+            dcc.Graph(id='cl-shap-fig', figure=_CLUST_SHAP_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '8px'}),
+        ], style=CARD),
 
-                html.Div([
-                    html.H4('Princípio de Pareto, Comprometimento por Cluster (Gráfico 29)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
-                    html.P(
-                        'Rent_pct é a categoria de maior peso em quatro dos cinco clusters. '
-                        'A exceção é o Cluster 3 (O Poupador Agressivo), onde Loan_Repayment_pct assume '
-                        'a posição dominante, reforçando a separação comportamental entre os perfis.',
-                        style={**P_STYLE, 'marginBottom': '12px'}
-                    ),
-                    section_img('/assets/cluster_pareto.png', 'Gráfico 29, Princípio de Pareto por cluster (K-Means++).', max_width='100%'),
-                ], style={'flex': '1', 'minWidth': '280px'}),
-            ], style={'display': 'flex', 'gap': '28px', 'flexWrap': 'wrap', 'marginTop': '8px'}),
+        html.Div([
+            html.H3('Princípio de Pareto, Comprometimento por Cluster (Gráfico 29)', style=H3),
+            html.P(
+                'Rent_pct é a categoria de maior peso em quatro dos cinco clusters. '
+                'A exceção é o Cluster 3 (O Poupador Agressivo), onde Loan_Repayment_pct assume '
+                'a posição dominante, reforçando a separação comportamental entre os perfis.',
+                style={**P_STYLE, 'marginBottom': '12px'}
+            ),
+            dcc.Graph(id='cl-pareto-fig', figure=_CLUST_PARETO_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '8px'}),
         ], style=CARD),
 
         # Comparativo
