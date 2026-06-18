@@ -2,7 +2,7 @@ import dash
 from dash import dcc, html, Input, Output
 
 from data import df_master 
-from sections import s51, s52, s53, s54, s55, s56_m1
+from sections import s51, s52, s53, s54, s55
 
 city_tiers = [str(c).replace('_', ' ') for c in df_master['City_Tier'].unique()]
 occupations = [str(o).replace('_', ' ') for o in df_master['Occupation'].unique()]
@@ -40,7 +40,6 @@ layout_eda = html.Div([
                     {'label': ' 5.3 – Condicionantes',       'value': 's53'},
                     {'label': ' 5.4 – Moradia',              'value': 's54'},
                     {'label': ' 5.5 – Cansaço/Dopamina',     'value': 's55'},
-                    {'label': ' 5.6 – M1 (Vulnerabilidade)', 'value': 's56'},
                 ],
                 value='s51',
                 className='custom-sidebar-menu', 
@@ -130,7 +129,6 @@ layout_eda = html.Div([
                 html.Div(s53.get_layout(), id='section-s53', style={'display': 'none'}),
                 html.Div(s54.get_layout(), id='section-s54', style={'display': 'none'}),
                 html.Div(s55.layout, id='section-s55', style={'display': 'none'}),
-                html.Div(s56_m1.layout, id='section-s56', style={'display': 'none'}),
             ], style={
                 'backgroundColor': BG_CARD, 'padding': '32px', 'borderRadius': '12px', 
                 'border': f'1px solid {BORDER_COLOR}', 'minHeight': '600px'
@@ -173,11 +171,11 @@ def register_eda_callbacks(app):
     @app.callback(
         [Output('section-s51', 'style'), Output('section-s52', 'style'),
          Output('section-s53', 'style'), Output('section-s54', 'style'),
-         Output('section-s55', 'style'), Output('section-s56', 'style')],
+         Output('section-s55', 'style')],
         Input('sidebar-nav', 'value'),
     )
     def toggle_sections(selected):
-        sections = ['s51', 's52', 's53', 's54', 's55', 's56']
+        sections = ['s51', 's52', 's53', 's54', 's55']
         return tuple({'display': 'block'} if selected == s else {'display': 'none'} for s in sections)
 
    
@@ -186,4 +184,3 @@ def register_eda_callbacks(app):
     s53.register_callbacks(app)
     s54.register_callbacks(app)
     s55.register_callbacks(app)
-    s56_m1.register_callbacks(app)
