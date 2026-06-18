@@ -184,16 +184,15 @@ def _gerar_scatter_ols(df):
         return html.Div("Dados insuficientes para calcular a tendência OLS com os filtros atuais.", 
                         style={'color': COLOR_ERROR, 'padding': '20px', 'textAlign': 'center', 'fontWeight': 'bold'})
 
-    sample = df_clean.sample(min(2000, len(df_clean)), random_state=42)
+    sample = df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True)
 
     fig = px.scatter(
         sample, x='Income', y='Transport',
-        color_discrete_sequence=[COLOR_PLOT_FILL],
         labels={'Income': 'Renda Mensal ($)', 'Transport': 'Custo de Transporte ($)'},
         title='Crescimento de Tendência de Gastos com Transporte'
     )
 
-    fig.update_traces(marker=dict(opacity=0.3, size=4))
+    fig.update_traces(marker=dict(opacity=0.3, size=4, color=COLOR_PLOT_FILL))
 
     coef = np.polyfit(df_clean['Income'].to_numpy(dtype=float), df_clean['Transport'].to_numpy(dtype=float), 1)
     x_line = np.array([df_clean['Income'].min(), df_clean['Income'].max()], dtype=float)
@@ -205,7 +204,7 @@ def _gerar_scatter_ols(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="closest",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=False,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
@@ -226,7 +225,7 @@ def _gerar_boxplot_tier(df):
     ordem = ['Tier 1', 'Tier 2', 'Tier 3']
 
     fig = px.box(
-        df_clean, x='City_Tier_Label', y='Transport',
+        df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True), x='City_Tier_Label', y='Transport',
         color='City_Tier_Label',
         color_discrete_sequence=['#1D1252', '#594CA3', '#A095F8'],
         category_orders={'City_Tier_Label': ordem},
@@ -239,7 +238,7 @@ def _gerar_boxplot_tier(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=False,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
@@ -259,7 +258,7 @@ def _gerar_scatter_tier(df):
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
     ordem = ['Tier 1', 'Tier 2', 'Tier 3']
     cores = ['#1D1252', '#594CA3', '#A095F8']
-    sample = df_clean.sample(min(3000, len(df_clean)), random_state=42)
+    sample = df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True)
 
     fig = px.scatter(
         sample, x='Income', y='Transport',
@@ -285,7 +284,7 @@ def _gerar_scatter_tier(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="closest",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
     )
