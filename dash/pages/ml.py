@@ -2,6 +2,7 @@ import dash
 from dash import dcc, html, Input, Output, State, MATCH, ALL, ctx
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import joblib
@@ -9,13 +10,13 @@ import os
 
 # ─── Caminhos ────────────────────────────────────────────────────────────────
 ROOT_DIR   = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-MODEL_PATH = os.path.join(ROOT_DIR, '..', 'modelos', 'modelo_previsao_vulnerabilidade', 'modelo_regressao_logistica.pkl')
-DATA_PATH  = os.path.join(ROOT_DIR, 'dataset', 'data.parquet')
+MODEL_PATH = os.path.join(ROOT_DIR, '..', 'modelos', 'mecanismo_vulnerabilidade', 'modelo_regressao_logistica_seguro.pkl')
+DATA_PATH         = os.path.join(ROOT_DIR, 'dataset', 'data.parquet')
+CLUSTER_DATA_PATH = os.path.join(ROOT_DIR, '..', 'modelos', 'modelo_clusterizacao', 'data.parquet')
 
 FEATURES = [
-    'Income', 'Age', 'Dependents', 'Loan_Repayment',
-    'Eating_Out', 'Entertainment', 'Healthcare',
-    'Rent', 'Groceries', 'Disposable_Income', 'Desired_Savings'
+    'Age', 'Dependents', 'Rent_Ratio', 'Healthcare_Ratio', 'Education_Ratio',
+    'Groceries_Ratio', 'Transport_Ratio', 'Utilities_Ratio', 'Insurance_Ratio',
 ]
 
 # ─── Design tokens (idênticos ao resto do projeto) ───────────────────────────
@@ -165,8 +166,9 @@ def section_img(src, caption, max_width='680px'):
 # Executado uma única vez no startup do servidor (sem sklearn em runtime).
 def _build_static_charts():
     """
-    Gera os 4 gráficos interativos do modelo usando apenas pandas/numpy/plotly.
-    Retorna: (corr_fig, cm_fig, shap_fig, pareto_fig)
+    Gera os 5 gráficos interativos do modelo usando apenas pandas/numpy/plotly.
+    Retorna: (corr_fig, cm_fig, shap_fig, pareto_fig, cv_fig)
+    Foco: classe Seguro (0) — identificação de bons clientes para crédito.
     """
     _placeholder = go.Figure().update_layout(
         paper_bgcolor='white', height=360,
@@ -177,61 +179,54 @@ def _build_static_charts():
     )
     try:
         # ── Carregar modelo ──────────────────────────────────────────────────
-        p       = joblib.load(MODEL_PATH)
-        coef    = np.array(p['coef']).ravel()       # (11,)
-        intcpt  = float(np.array(p['intercept']).ravel()[0])
-        mean_   = np.array(p['scaler_mean'])        # (11,)
-        scale_  = np.array(p['scaler_scale'])       # (11,)
+        p      = joblib.load(MODEL_PATH)
+        coef   = np.array(p['coef']).ravel()        # (9,)
+        intcpt = float(np.array(p['intercept']).ravel()[0])
 
         # ── Carregar e preparar dados ─────────────────────────────────────
         try:
-            df = pd.read_parquet(DATA_PATH)
+            df = pd.read_parquet(DATA_PATH, engine='fastparquet')
         except Exception:
-            df = pd.read_csv(DATA_PATH.replace('.parquet', '.csv'))
+            df = pd.read_parquet(DATA_PATH)
         df = df[df['Desired_Savings'] > 0].reset_index(drop=True)
 
+        # Construir variável alvo
+        df['perc_nao_essenciais'] = (df['Eating_Out'] + df['Entertainment']) / df['Income']
+        df['perc_emprestimo']     = df['Loan_Repayment'] / df['Income']
+        df['Vulnerable'] = (
+            (df['perc_emprestimo'] > 0.10).astype(int) +
+            (df['perc_nao_essenciais'] > 0.085).astype(int) +
+            ((df['Disposable_Income'] - df['Desired_Savings']) / df['Income'] < 0.10).astype(int) +
+            (df['Potential_Savings_Groceries'] / df['Income'] > 0.08).astype(int) >= 2
+        ).astype(int)
+
+        # Engenharia de features (rácios)
+        df['Rent_Ratio']       = df['Rent']       / df['Income']
+        df['Healthcare_Ratio'] = df['Healthcare'] / df['Income']
+        df['Education_Ratio']  = df['Education']  / df['Income']
+        df['Groceries_Ratio']  = df['Groceries']  / df['Income']
+        df['Transport_Ratio']  = df['Transport']  / df['Income']
+        df['Utilities_Ratio']  = df['Utilities']  / df['Income']
+        df['Insurance_Ratio']  = df['Insurance']  / df['Income']
+
         X   = df[FEATURES]
-        y   = df['Vulnerable'].to_numpy() if 'Vulnerable' in df.columns else None
+        feat_labels = [f.replace('_', ' ') for f in FEATURES]
 
-        # Reconstruir y se não estiver na base
-        if y is None:
-            colunas_pot = [
-                'Potential_Savings_Groceries', 'Potential_Savings_Transport',
-                'Potential_Savings_Eating_Out', 'Potential_Savings_Entertainment',
-                'Potential_Savings_Utilities', 'Potential_Savings_Healthcare',
-                'Potential_Savings_Education', 'Potential_Savings_Miscellaneous',
-            ]
-            df['perc_nao_essenciais']    = (df['Eating_Out'] + df['Entertainment']) / df['Income']
-            df['perc_emprestimo']        = df['Loan_Repayment'] / df['Income']
-            df['perc_potential_savings'] = df[colunas_pot].sum(axis=1) / df['Income']
-            df['buffer_emergencia']      = (df['Disposable_Income'] - df['Desired_Savings']) / df['Income']
-            df['risk_score'] = (
-                (df['perc_emprestimo']      > 0.10).astype(int) +
-                (df['perc_nao_essenciais']  > 0.085).astype(int) +
-                (df['buffer_emergencia']    < 0.10).astype(int) +
-                (df['perc_potential_savings'] > 0.08).astype(int)
-            )
-            y = (df['risk_score'] >= 2).astype(int).to_numpy()
-
-        X_arr = X.to_numpy(dtype=float)
-
-        # ── 1. Matriz de Correlação (Bloco 15) ───────────────────────────
-        corr_matrix = X.corr().round(2)
-        feat_labels  = [f.replace('_', ' ') for f in FEATURES]
-
+        # ── 1. Matriz de Correlação ───────────────────────────────────────
+        corr = X.corr().round(2)
         corr_fig = px.imshow(
             corr_matrix.values,
             x=feat_labels, y=feat_labels,
             text_auto='.2f',
             color_continuous_scale='RdYlGn',
             range_color=[-1, 1],
-            title='Matriz de Correlação entre Features',
+            title='Gráfico 1 — Matriz de Correlação das 9 Features Preditoras (Rácios)',
         )
         corr_fig.update_layout(
             paper_bgcolor='white', plot_bgcolor='white',
-            height=540, margin=dict(t=60, b=80, l=140, r=40),
-            font=dict(size=8, family='Segoe UI'),
-            title_font_size=14,
+            height=500, margin=dict(t=60, b=100, l=150, r=40),
+            font=dict(size=11, family='Segoe UI'),
+            title_font_size=13,
             coloraxis_colorbar=dict(title='r'),
         )
         corr_fig.update_xaxes(tickangle=-40)
@@ -239,92 +234,92 @@ def _build_static_charts():
             hovertemplate='<b>%{y}</b> ↔ <b>%{x}</b><br>r = %{z:.2f}<extra></extra>'
         )
 
-        # ── Split estratificado (sem sklearn) ─────────────────────────────
-        rng = np.random.RandomState(42)
-        test_idx = []
-        for cls in np.unique(y):
-            cls_idx  = np.where(y == cls)[0]
-            shuffled = rng.permutation(cls_idx)
-            n_test   = int(np.round(len(cls_idx) * 0.2))
-            test_idx.extend(shuffled[:n_test].tolist())
-        test_idx  = np.array(test_idx)
-        train_idx = np.setdiff1d(np.arange(len(y)), test_idx)
+        # ── 2. Matriz de Confusão (valores exatos do notebook) ────────────
+        # sklearn confusion_matrix(y_test, y_pred_lr), train_test_split(random_state=42)
+        # Seguro=0, Vulnerável=1  →  cm[0,0]=TN, cm[0,1]=FP, cm[1,0]=FN, cm[1,1]=TP
+        tn, fp, fn, tp = 2522, 636, 532, 288
+        recall_seg = tn / (tn + fp)   # 79,9 %
+        auc_roc    = p.get('auc_roc', '0.6529')
 
-        X_test_arr = X_arr[test_idx]
-        y_test     = y[test_idx]
-        X_test_sc  = (X_test_arr - mean_) / scale_
-
-        z_test   = X_test_sc @ coef + intcpt
-        prob_test = 1.0 / (1.0 + np.exp(-z_test))
-        y_pred   = (prob_test >= 0.5).astype(int)
-
-        # ── 2. Matriz de Confusão (Bloco 21) ─────────────────────────────
-        tn = int(((y_test == 0) & (y_pred == 0)).sum())
-        fp = int(((y_test == 0) & (y_pred == 1)).sum())
-        fn = int(((y_test == 1) & (y_pred == 0)).sum())
-        tp = int(((y_test == 1) & (y_pred == 1)).sum())
-        recall_vuln = tp / (tp + fn) if (tp + fn) > 0 else 0
-
-        lbs   = ['Seguro', 'Vulnerável']
-        cm_z  = [[tn, fp], [fn, tp]]
+        lbs    = ['Seguro', 'Vulnerável']
+        cm_z   = [[tn, fp], [fn, tp]]
         cm_txt = [[f'{tn:,}', f'{fp:,}'], [f'{fn:,}', f'{tp:,}']]
 
         cm_fig = go.Figure(go.Heatmap(
             z=cm_z, x=lbs, y=lbs,
             text=cm_txt, texttemplate='<b>%{text}</b>',
             colorscale='Blues', showscale=True,
-            hovertemplate='Real: %{y}<br>Previsto: %{x}<br>Count: %{text}<extra></extra>',
+            hovertemplate='Real: %{y}<br>Previsto: %{x}<br>Contagem: %{text}<extra></extra>',
         ))
         cm_fig.update_layout(
-            title='Matriz de Confusão — Regressão Logística',
-            xaxis_title='Previsto pelo Modelo',
-            yaxis_title='Real',
+            title='Figura 17 — Matriz de Confusão, Regressão Logística (Foco: Seguro)',
+            xaxis_title='Predito',
+            yaxis=dict(title='Real', autorange='reversed'),
             paper_bgcolor='white', plot_bgcolor='white',
             height=420, font=dict(size=12, family='Segoe UI'),
-            title_font_size=14,
-            margin=dict(t=60, b=80, l=120, r=40),
+            title_font_size=13,
+            margin=dict(t=60, b=90, l=120, r=40),
             annotations=[dict(
-                text=f'Recall Vulnerável: {recall_vuln*100:.1f}%   |   '
-                     f'AUC-ROC: {p.get("auc_roc", "0.9506")}',
-                x=0.5, y=-0.22, xref='paper', yref='paper',
+                text=f'Recall Seguro: {recall_seg*100:.1f}%  |  '
+                     f'Seguro corretos: {tn:,} de {tn+fp:,}  |  '
+                     f'AUC-ROC: {auc_roc}',
+                x=0.5, y=-0.28, xref='paper', yref='paper',
                 showarrow=False, font=dict(size=12, color=TEXT_MUTED),
             )],
         )
 
-        # ── 3. SHAP Importance ────────────────────────────────────────────
-        X_all_sc  = (X_arr - mean_) / scale_
-        shap_vals = X_all_sc * coef           # (N, 11) — LinearExplainer manual
-        mean_shap = np.abs(shap_vals).mean(axis=0)
-
-        shap_df = pd.DataFrame({'feature': feat_labels, 'importancia': mean_shap})
-        shap_df = shap_df.sort_values('importancia', ascending=True)
+        # ── 3. SHAP Importance (perspectiva Seguro, valores exatos do notebook)
+        # shap.LinearExplainer(modelo_lr, X_train).shap_values(X_test), sv = -shap, mask y_test==0
+        shap_exact = {
+            'Healthcare Ratio': 0.004637,
+            'Transport Ratio':  0.013670,
+            'Age':              0.015600,
+            'Insurance Ratio':  0.016555,
+            'Dependents':       0.030998,
+            'Utilities Ratio':  0.035733,
+            'Groceries Ratio':  0.057591,
+            'Education Ratio':  0.185741,
+            'Rent Ratio':       0.284150,
+        }
+        shap_df = pd.DataFrame(list(shap_exact.items()), columns=['feature', 'importancia'])
+        shap_df = shap_df.sort_values('importancia', ascending=True).reset_index(drop=True)
 
         shap_fig = go.Figure(go.Bar(
             x=shap_df['importancia'],
             y=shap_df['feature'],
             orientation='h',
-            marker_color=ROXO,
+            marker_color=SUCCESS,
             hovertemplate='<b>%{y}</b><br>|SHAP| médio: %{x:.4f}<extra></extra>',
         ))
         shap_fig.update_layout(
-            title='Figura 18 — SHAP: Importância e Impacto das Variáveis',
-            xaxis_title='Importância média (|SHAP value|)',
+            title='Figura 18 — SHAP: Importância das Features para Seguro (Regressão Logística)',
+            xaxis_title='Importância média (|SHAP value|) — perspectiva Seguro',
             paper_bgcolor='white', plot_bgcolor='white',
             height=420, font=dict(size=12, family='Segoe UI'),
             title_font_size=13,
-            margin=dict(t=60, b=40, l=155, r=40),
+            margin=dict(t=60, b=40, l=160, r=40),
         )
         shap_fig.update_xaxes(showgrid=True, gridcolor='#f0f0f0')
 
-        # ── 4. Princípio de Pareto ────────────────────────────────────────
-        pareto_df = shap_df.sort_values('importancia', ascending=False).copy()
-        pareto_df['pct']       = pareto_df['importancia'] / pareto_df['importancia'].sum() * 100
+        # ── 4. Princípio de Pareto (valores exatos do notebook) ─────────
+        pareto_exact = [
+            ('Rent Ratio',       44.076),
+            ('Education Ratio',  28.812),
+            ('Groceries Ratio',   8.933),
+            ('Utilities Ratio',   5.543),
+            ('Dependents',        4.808),
+            ('Insurance Ratio',   2.568),
+            ('Age',               2.420),
+            ('Transport Ratio',   2.121),
+            ('Healthcare Ratio',  0.719),
+        ]
+        pareto_df = pd.DataFrame(pareto_exact, columns=['feature', 'pct'])
         pareto_df['cumulativo'] = pareto_df['pct'].cumsum()
 
         pareto_fig = go.Figure()
         pareto_fig.add_trace(go.Bar(
             x=pareto_df['feature'], y=pareto_df['pct'],
-            name='Importância %', marker_color='#1976d2',
+            name='Importância %', marker_color=SUCCESS,
             hovertemplate='<b>%{x}</b><br>Importância: %{y:.1f}%<extra></extra>',
         ))
         pareto_fig.add_trace(go.Scatter(
@@ -335,7 +330,6 @@ def _build_static_charts():
             marker=dict(size=6, color=ERROR),
             hovertemplate='<b>%{x}</b><br>Cumulativo: %{y:.1f}%<extra></extra>',
         ))
-        # Linha dos 80%
         pareto_fig.add_trace(go.Scatter(
             x=pareto_df['feature'].tolist(), y=[80] * len(pareto_df),
             mode='lines', name='80%', yaxis='y2',
@@ -343,7 +337,7 @@ def _build_static_charts():
             hoverinfo='skip', showlegend=True,
         ))
         pareto_fig.update_layout(
-            title='Figura 19 — Princípio de Pareto: Causa-Efeito das Features',
+            title='Figura 19 — Princípio de Pareto: Importância das Features para Seguro',
             yaxis=dict(title='Importância individual (%)', showgrid=True, gridcolor='#f0f0f0'),
             yaxis2=dict(title='Cumulativo (%)', overlaying='y', side='right', range=[0, 110]),
             plot_bgcolor='white', paper_bgcolor='white',
@@ -354,13 +348,420 @@ def _build_static_charts():
         )
         pareto_fig.update_xaxes(tickangle=-30)
 
-        return corr_fig, cm_fig, shap_fig, pareto_fig
+        # ── 5. Cross-Validation (tabela visual) ───────────────────────────
+        cv_data = {
+            'Métrica':  ['Precisão', 'Recall', 'F1-Score', 'Acurácia'],
+            'Média':    ['0,827',    '0,794',  '0,810',    '0,705'],
+            'Desvio':   ['+/- 0,003','+/- 0,009','+/- 0,005','+/- 0,006'],
+        }
+        cv_df = pd.DataFrame(cv_data)
 
-    except Exception:
-        return _placeholder, _placeholder, _placeholder, _placeholder
+        cv_fig = go.Figure(data=[go.Table(
+            header=dict(
+                values=['<b>Métrica</b>', '<b>Média</b>', '<b>Desvio Padrão</b>'],
+                fill_color=ROXO,
+                font=dict(color='white', size=13, family='Segoe UI'),
+                align='center',
+                height=36,
+            ),
+            cells=dict(
+                values=[cv_df['Métrica'], cv_df['Média'], cv_df['Desvio']],
+                fill_color=[['white', '#e3f2fd'] * 4],
+                font=dict(color=TEXT_MAIN, size=13, family='Segoe UI'),
+                align='center',
+                height=32,
+            ),
+        )])
+        cv_fig.update_layout(
+            title='Cross-Validation — Regressão Logística (5 Folds) — Foco: Seguro',
+            title_font_size=13,
+            paper_bgcolor='white',
+            height=280,
+            margin=dict(t=50, b=20, l=20, r=20),
+            font=dict(family='Segoe UI'),
+        )
+
+        return corr_fig, cm_fig, shap_fig, pareto_fig, cv_fig
+
+    except Exception as e:
+        print(f'[_build_static_charts error] {e}')
+        return _placeholder, _placeholder, _placeholder, _placeholder, _placeholder
 
 
-_CORR_FIG, _CM_FIG, _SHAP_FIG, _PARETO_FIG = _build_static_charts()
+_CORR_FIG, _CM_FIG, _SHAP_FIG, _PARETO_FIG, _CV_FIG = _build_static_charts()
+
+
+# ─── Pré-computação dos gráficos interativos do modelo de clusterização ──────
+def _build_cluster_charts():
+    """
+    Gera os 8 gráficos interativos do modelo K-Means++.
+    Retorna: (corr_fig, pca_var_fig, kdist_fig, elbow_sil_fig,
+              silh_diag_fig, pca2d_fig, shap_fig, pareto_fig)
+    """
+    from sklearn.preprocessing import RobustScaler
+    from sklearn.decomposition import PCA
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_samples
+    from sklearn.neighbors import NearestNeighbors
+    from sklearn.ensemble import RandomForestClassifier
+
+    _ph = go.Figure().update_layout(
+        paper_bgcolor='white', height=400,
+        annotations=[dict(text='Dados de cluster não disponíveis', x=0.5, y=0.5,
+                          xref='paper', yref='paper', showarrow=False,
+                          font=dict(size=13, color='#aaa'))],
+        margin=dict(t=20, b=20, l=20, r=20),
+    )
+    try:
+        # ── Feature engineering (idêntico ao notebook) ────────────────────────
+        df = pd.read_parquet(CLUSTER_DATA_PATH)
+        city_map = {'Tier_1': 3, 'Tier_2': 2, 'Tier_3': 1}
+        df['City_Tier_enc'] = df['City_Tier'].map(city_map)
+
+        df_m = pd.DataFrame({
+            'Rent_pct':            df['Rent']             / df['Income'],
+            'Loan_Repayment_pct':  df['Loan_Repayment']   / df['Income'],
+            'Disposable_pct':      df['Disposable_Income'] / df['Income'],
+            # Desired_Savings_Percentage é uma coluna de percentual (0–100); /100 → fração
+            'Desired_Savings_pct': df['Desired_Savings_Percentage'] / 100,
+            'Age':                 df['Age'],
+            'Dependents':          df['Dependents'],
+            # Gap = meta de poupança (fração) − renda disponível (fração)
+            'Gap_Poupanca':        (df['Desired_Savings_Percentage'] / 100) - (df['Disposable_Income'] / df['Income']),
+            'City_Tier_enc':       df['City_Tier_enc'],
+            'Gastos_Consumo_pct':  (df['Eating_Out'] + df['Entertainment'] + df['Groceries']) / df['Income'],
+            # Gastos_Fixos = Insurance + Transport + Healthcare (sem Utilities — igual ao notebook)
+            'Gastos_Fixos_pct':    (df['Insurance'] + df['Transport'] + df['Healthcare']) / df['Income'],
+        })
+
+        scaler   = RobustScaler()
+        df_norm  = scaler.fit_transform(df_m)
+        feat_names = list(df_m.columns)
+        feat_lbl   = [n.replace('_pct', ' %').replace('_', ' ') for n in feat_names]
+
+        # ── 1. Correlação ─────────────────────────────────────────────────────
+        # Usa os nomes originais das colunas (igual ao notebook: sns.heatmap com df_modelo.corr())
+        corr     = df_m.corr().round(2)
+        col_names = list(df_m.columns)   # Rent_pct, Loan_Repayment_pct, etc.
+        corr_fig = px.imshow(
+            corr.values, x=col_names, y=col_names,
+            text_auto='.2f', color_continuous_scale='RdBu_r',
+            range_color=[-1, 1],
+            title='Mapa de Correlação — Variáveis Proporcionais',
+        )
+        corr_fig.update_layout(
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=540, margin=dict(t=60, b=130, l=180, r=40),
+            font=dict(size=11, family='Segoe UI'), title_font_size=13,
+            coloraxis_colorbar=dict(title='r'),
+        )
+        corr_fig.update_xaxes(tickangle=-45)
+        corr_fig.update_traces(
+            hovertemplate='<b>%{y}</b> ↔ <b>%{x}</b><br>r = %{z:.2f}<extra></extra>'
+        )
+
+        # ── 2. PCA Variância Acumulada ────────────────────────────────────────
+        pca_full = PCA()
+        pca_full.fit(df_norm)
+        var_cumul = np.cumsum(pca_full.explained_variance_ratio_) * 100
+        pcs = list(range(1, len(var_cumul) + 1))
+
+        pca_var_fig = go.Figure()
+        pca_var_fig.add_trace(go.Scatter(
+            x=pcs, y=var_cumul.tolist(),
+            mode='lines+markers',
+            line=dict(color='royalblue', width=2),
+            marker=dict(symbol='circle', size=8, color='royalblue'),
+            hovertemplate='PC%{x}<br>Variância Acumulada: %{y:.1f}%<extra></extra>',
+        ))
+        pca_var_fig.add_hline(y=85, line=dict(color='red', dash='dash', width=1.5),
+                              annotation_text='85%', annotation_position='top right')
+        pca_var_fig.add_hline(y=95, line=dict(color='green', dash='dash', width=1.5),
+                              annotation_text='95%', annotation_position='top right')
+        pca_var_fig.update_layout(
+            title='Quantos componentes PCA precisamos?',
+            xaxis=dict(title='Número de Componentes', dtick=1),
+            yaxis=dict(title='Variância Acumulada (%)'),
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=440, font=dict(size=12, family='Segoe UI'), title_font_size=13,
+            showlegend=False, margin=dict(t=60, b=60, l=70, r=60),
+        )
+
+        # ── PCA 6 componentes para clustering (≈85 % variância) ──────────────
+        pca6   = PCA(n_components=6, random_state=42)
+        df_pca = pca6.fit_transform(df_norm)
+
+        # ── 3. K-Distance (amostra de 5000 pontos para velocidade) ───────────
+        rng42    = np.random.RandomState(42)
+        sub_idx  = rng42.choice(len(df_pca), 5000, replace=False)
+        df_sub   = df_pca[sub_idx]
+        nn       = NearestNeighbors(n_neighbors=12).fit(df_sub)
+        dists, _ = nn.kneighbors(df_sub)
+        kdist    = np.sort(dists[:, 11])
+
+        kdist_fig = go.Figure()
+        kdist_fig.add_trace(go.Scatter(
+            y=kdist.tolist(), mode='lines',
+            line=dict(color=ROXO, width=2),
+            hovertemplate='Ponto %{x}<br>Distância: %{y:.4f}<extra></extra>',
+            name='K-Distance',
+        ))
+        kdist_fig.add_hline(y=0.70, line=dict(color='red', dash='dash', width=1.5),
+                            annotation_text='ε = 0,70', annotation_position='top right')
+        kdist_fig.update_layout(
+            title='Gráfico 5 — K-Distance (12-NN) para Determinação do Epsilon (DBSCAN)',
+            xaxis_title='Pontos ordenados',
+            yaxis_title='Distância ao 12º vizinho mais próximo',
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=400, font=dict(size=12, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=60, b=60, l=60, r=40), showlegend=False,
+        )
+
+        # ── 4. Cotovelo + Silhouette Score (valores completos, hardcoded) ─────
+        K_range     = list(range(2, 11))
+        inertias    = [64057, 56229, 50749, 46342, 42668, 40512, 38788, 37266, 35796]
+        silhouettes = [0.2324, 0.2170, 0.2080, 0.2190, 0.1897, 0.1770, 0.1653, 0.1622, 0.1590]
+
+        elbow_sil_fig = make_subplots(
+            rows=1, cols=2,
+            subplot_titles=['Método do Cotovelo (Inércia)', 'Silhouette Score Médio'],
+        )
+        elbow_sil_fig.add_trace(go.Scatter(
+            x=K_range, y=inertias, mode='lines+markers', name='Inércia',
+            line=dict(color='royalblue', width=2),
+            marker=dict(symbol='circle', size=8, color='royalblue'),
+            hovertemplate='K=%{x}<br>Inércia: %{y:,.0f}<extra></extra>',
+        ), row=1, col=1)
+        elbow_sil_fig.add_trace(go.Scatter(
+            x=K_range, y=silhouettes, mode='lines+markers', name='Silhouette',
+            line=dict(color='red', width=2),
+            marker=dict(symbol='square', size=8, color='red'),
+            hovertemplate='K=%{x}<br>Silhouette: %{y:.4f}<extra></extra>',
+        ), row=1, col=2)
+        for _c in [1, 2]:
+            elbow_sil_fig.add_vline(
+                x=5, line=dict(color=ERROR, dash='dash', width=1.5), row=1, col=_c,
+            )
+        elbow_sil_fig.update_layout(
+            title='Gráfico 6 — Seleção de K: Cotovelo e Silhouette Score (K-Means++)',
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=420, font=dict(size=12, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=80, b=60, l=70, r=60), showlegend=False,
+        )
+        elbow_sil_fig.update_xaxes(title_text='K (clusters)', dtick=1)
+        elbow_sil_fig.update_yaxes(title_text='Inércia', row=1, col=1)
+        elbow_sil_fig.update_yaxes(title_text='Silhouette Score', row=1, col=2)
+
+        # ── 5. Silhouette Diagram K = 3, 4, 5 (nipy_spectral, gap=10) ───────────
+        import matplotlib.cm as _cm
+        def _nipy(i, k):
+            r, g, b, _ = _cm.nipy_spectral(float(i) / k)
+            return f'#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}'
+
+        silh_diag_fig = make_subplots(
+            rows=1, cols=3,
+            subplot_titles=['K = 3', 'K = 4', 'K = 5'],
+        )
+        cl_palette = ['steelblue', 'coral', 'green', 'purple', 'orange']
+        silh_annots = []
+
+        for col_idx, k in enumerate([3, 4, 5]):
+            km  = KMeans(n_clusters=k, init='k-means++', random_state=42, n_init=10)
+            lbl = km.fit_predict(df_pca)
+            sv  = silhouette_samples(df_pca, lbl)
+            avg = float(sv.mean())
+            n_total = len(sv)
+
+            y_lower = 10
+            for i in range(k):
+                cl_sv   = np.sort(sv[lbl == i])
+                n_i     = len(cl_sv)
+                y_upper = y_lower + n_i
+                y_range = np.arange(y_lower, y_upper)
+                color   = _nipy(i, k)
+
+                silh_diag_fig.add_trace(go.Scatter(
+                    x=np.concatenate([[0], cl_sv, [0]]).tolist(),
+                    y=np.concatenate([[y_lower], y_range, [y_upper]]).tolist(),
+                    fill='tozerox', fillcolor=color,
+                    line=dict(color=color, width=0.5),
+                    name=f'Cluster {i}', opacity=0.75,
+                    showlegend=False,
+                ), row=1, col=col_idx + 1)
+
+                # Cluster label on the left
+                xref = 'x' if col_idx == 0 else f'x{col_idx + 1}'
+                yref = 'y' if col_idx == 0 else f'y{col_idx + 1}'
+                silh_annots.append(dict(
+                    x=-0.05, y=y_lower + 0.5 * n_i,
+                    xref=xref, yref=yref,
+                    text=str(i), showarrow=False,
+                    font=dict(size=11, color='black'),
+                ))
+                y_lower = y_upper + 10
+
+            # Mean vline + annotation
+            silh_diag_fig.add_vline(
+                x=avg, line=dict(color='red', dash='dash', width=1.5),
+                annotation_text=f'Média: {avg:.3f}',
+                annotation_font=dict(size=9, color='red'),
+                annotation_position='top right',
+                row=1, col=col_idx + 1,
+            )
+
+        silh_diag_fig.update_layout(
+            title='Silhouette Diagram — Comparação de K',
+            annotations=silh_annots,
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=480, font=dict(size=11, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=80, b=60, l=60, r=40),
+        )
+        silh_diag_fig.update_xaxes(title_text='Silhouette coefficient', range=[-0.1, 1])
+        silh_diag_fig.update_yaxes(showticklabels=False)
+
+        # ── Modelo final K = 5 ────────────────────────────────────────────────
+        modelo_final = KMeans(n_clusters=5, init='k-means++', random_state=42, n_init=10)
+        labels_final = modelo_final.fit_predict(df_pca)
+        df_m['Cluster'] = labels_final
+
+        # ── 6. 2D PCA Scatter — dados brutos, cor única (sem labels de cluster) ─
+        # Replica exatamente o notebook: PCA(n_components=2) no df_normalizado,
+        # todos os pontos em steelblue, alpha=0.3, s=5 (marker size ~3px)
+        pca2d     = PCA(n_components=2, random_state=42)
+        df_pca_2d = pca2d.fit_transform(df_norm)
+
+        pca2d_fig = go.Figure()
+        pca2d_fig.add_trace(go.Scatter(
+            x=df_pca_2d[:, 0].tolist(),
+            y=df_pca_2d[:, 1].tolist(),
+            mode='markers',
+            marker=dict(color='steelblue', size=3, opacity=0.3),
+            hovertemplate='PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>',
+            showlegend=False,
+        ))
+        pca2d_fig.update_layout(
+            title='Visualização 2D dos dados (PCA)',
+            xaxis_title='Componente Principal 1',
+            yaxis_title='Componente Principal 2',
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=480, font=dict(size=12, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=60, b=60, l=60, r=40),
+        )
+
+        # ── 7. SHAP Beeswarm (Random Forest Surrogate) ───────────────────────
+        X_shap = df_m.drop(columns=['Cluster'])
+        rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, max_depth=10)
+        rf.fit(X_shap, labels_final)
+
+        shap_idx = np.random.RandomState(42).choice(len(X_shap), 800, replace=False)
+        X_samp   = X_shap.iloc[shap_idx]
+        fv_arr   = X_samp.values
+
+        try:
+            import shap as _shap
+            expl   = _shap.TreeExplainer(rf)
+            sv_raw = np.array(expl.shap_values(X_samp))
+            if sv_raw.ndim == 3:
+                sv_per = sv_raw.mean(axis=0) if sv_raw.shape[0] == 5 else sv_raw.mean(axis=2)
+            else:
+                sv_per = sv_raw
+        except Exception:
+            imp    = rf.feature_importances_
+            sv_per = np.tile(imp, (len(X_samp), 1))
+
+        importance = np.abs(sv_per).mean(axis=0)
+        order      = np.argsort(importance)   # ascending → bottom to top on y-axis
+
+        shap_fig = go.Figure()
+        for rank, fi in enumerate(order):
+            sv    = sv_per[:, fi]
+            fv    = fv_arr[:, fi]
+            fnorm = (fv - fv.min()) / (fv.max() - fv.min() + 1e-9)
+            jit   = np.random.RandomState(fi * 17).uniform(-0.3, 0.3, len(sv))
+
+            shap_fig.add_trace(go.Scatter(
+                x=sv.tolist(), y=(rank + jit).tolist(),
+                mode='markers', name=feat_lbl[fi], showlegend=False,
+                marker=dict(
+                    size=4, color=fnorm.tolist(), colorscale='RdBu_r',
+                    cmin=0, cmax=1, opacity=0.65,
+                    showscale=(rank == len(order) - 1),
+                    colorbar=dict(
+                        title='Valor<br>feature',
+                        tickvals=[0, 0.5, 1], ticktext=['Baixo', 'Médio', 'Alto'],
+                        thickness=12, len=0.55, y=0.5,
+                    ) if rank == len(order) - 1 else None,
+                ),
+                hovertemplate=f'<b>{feat_lbl[fi]}</b><br>SHAP: %{{x:.4f}}<extra></extra>',
+            ))
+
+        shap_fig.add_vline(x=0, line=dict(color='gray', width=1, dash='dot'))
+        shap_fig.update_layout(
+            title='Gráfico 30 — SHAP Beeswarm Global, Random Forest Surrogate (K-Means++)',
+            xaxis_title='SHAP Value (impacto na separação de clusters)',
+            yaxis=dict(
+                tickmode='array',
+                tickvals=list(range(len(order))),
+                ticktext=[feat_lbl[fi] for fi in order],
+                showgrid=False,
+            ),
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=480, font=dict(size=11, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=60, b=60, l=165, r=80),
+        )
+
+        # ── 8. Pareto por Cluster (5 subplots com eixo y secundário) ─────────
+        cols_pareto = ['Rent_pct', 'Loan_Repayment_pct', 'Gastos_Consumo_pct', 'Gastos_Fixos_pct']
+        lbls_pareto = ['Aluguel', 'Empréstimo', 'Consumo', 'Fixos']
+        pareto_fig  = make_subplots(
+            rows=2, cols=3,
+            subplot_titles=[f'Cluster {i}' for i in range(5)] + [''],
+            specs=[[{'secondary_y': True}] * 3, [{'secondary_y': True}] * 3],
+            vertical_spacing=0.18, horizontal_spacing=0.1,
+        )
+        pr_rows = [1, 1, 1, 2, 2]
+        pr_cols = [1, 2, 3, 1, 2]
+
+        for i in range(5):
+            dados   = df_m[df_m['Cluster'] == i][cols_pareto].mean()
+            s       = dados.abs().sort_values(ascending=False)
+            pct     = s / s.sum() * 100
+            cumul   = pct.cumsum()
+            lsorted = [lbls_pareto[cols_pareto.index(c)] for c in s.index]
+
+            pareto_fig.add_trace(go.Bar(
+                x=lsorted, y=pct.values.tolist(),
+                marker_color=cl_palette[i], name=f'C{i}', showlegend=False,
+                hovertemplate='%{x}: %{y:.1f}%<extra></extra>',
+            ), row=pr_rows[i], col=pr_cols[i], secondary_y=False)
+            pareto_fig.add_trace(go.Scatter(
+                x=lsorted, y=cumul.values.tolist(),
+                mode='lines+markers', showlegend=False,
+                line=dict(color=ERROR, width=2), marker=dict(size=5, color=ERROR),
+                hovertemplate='Cumul.: %{y:.1f}%<extra></extra>',
+            ), row=pr_rows[i], col=pr_cols[i], secondary_y=True)
+
+        pareto_fig.update_layout(
+            title='Gráfico 29 — Princípio de Pareto por Cluster (K-Means++)',
+            paper_bgcolor='white', plot_bgcolor='white',
+            height=540, font=dict(size=10, family='Segoe UI'), title_font_size=13,
+            margin=dict(t=80, b=60, l=50, r=60),
+        )
+        for _r in [1, 2]:
+            for _c in [1, 2, 3]:
+                pareto_fig.update_yaxes(range=[0, 110], secondary_y=True, row=_r, col=_c)
+
+        return (corr_fig, pca_var_fig, kdist_fig, elbow_sil_fig,
+                silh_diag_fig, pca2d_fig, shap_fig, pareto_fig)
+
+    except Exception as e:
+        print(f'[_build_cluster_charts error] {e}')
+        import traceback; traceback.print_exc()
+        return tuple([_ph] * 8)
+
+
+(_CL_CORR_FIG, _CL_PCA_VAR_FIG, _CL_KDIST_FIG, _CL_ELBOW_SIL_FIG,
+ _CL_SILH_DIAG_FIG, _CL_PCA2D_FIG, _CL_SHAP_FIG, _CL_PARETO_FIG) = _build_cluster_charts()
 
 _GRAPH_CFG = {'displayModeBar': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']}
 
@@ -778,10 +1179,10 @@ def kdd_tag(step):
 def classif_processamento():
     cond_headers = ['Condição', 'Descrição', 'Fórmula', 'Limiar']
     cond_rows = [
-        ['C1', 'Endividamento Elevado',               'Loan_Repayment / Income',           '> 10%'],
-        ['C2', 'Buffer de Emergência Baixo',          'Disposable_Income / Income',         '< 10%'],
-        ['C3', 'Gastos Não Essenciais Altos',         '(Eating_Out + Entertainment) / Income', '> 8,5%'],
-        ['C4', 'Potencial de Economia Não Realizado', 'Potential_Savings / Income',         '> 8%'],
+        ['C1', 'Endividamento Elevado',               'perc_emprestimo  =  Loan_Repayment / Income',                           '> 10%'],
+        ['C2', 'Buffer de Segurança Baixo',           'perc_buffer  =  (Disposable_Income − Desired_Savings) / Income',        '< 10%'],
+        ['C3', 'Gastos Não Essenciais Altos',         'perc_nao_essenciais  =  (Eating_Out + Entertainment) / Income',         '> 8,5%'],
+        ['C4', 'Potencial de Economia em Groceries',  'perc_pot_groceries  =  Potential_Savings_Groceries / Income',           '> 8%'],
     ]
 
     return html.Div([
@@ -791,15 +1192,17 @@ def classif_processamento():
             'Como o dataset não possuía uma variável-alvo pronta, a variável Vulnerable foi construída '
             'a partir de regras de negócio validadas empiricamente. Trata-se de uma variável binária '
             '(0 = seguro, 1 = vulnerável): o cliente é classificado como vulnerável quando satisfaz '
-            'simultaneamente duas ou mais das quatro condições de risco definidas abaixo.',
+            'duas ou mais das quatro condições de risco abaixo. O objetivo do modelo é identificar '
+            'os clientes seguros (classe 0), bons candidatos para concessão de crédito.',
             style=P_STYLE
         ),
 
         html.Div([
-            html.H3('Feature Engineering, Indicadores de Saúde Financeira', style=H3),
+            html.H3('Indicadores Auxiliares para Construção do Target', style=H3),
             html.P(
-                'Antes da classificação, foram criados quatro indicadores derivados da renda para '
-                'sustentar a construção do target e capturar padrões de risco financeiro:',
+                'Quatro indicadores derivados da renda foram criados exclusivamente para definir a '
+                'variável-alvo. Eles não entram no modelo de predição (seriam leakage), mas fundamentam '
+                'a lógica de negócio que classifica cada cliente:',
                 style={**P_STYLE, 'marginBottom': '16px'}
             ),
             html.Div([
@@ -812,29 +1215,29 @@ def classif_processamento():
                     }),
                     html.Div([html.Code('Loan_Repayment / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
                              style={'marginBottom': '6px'}),
-                    html.Div('Percentual da renda comprometida com pagamento de empréstimos. '
-                             'Valores acima de 10% ativam a condição C1 de risco.',
+                    html.Div('Percentual da renda comprometida com empréstimos. '
+                             'Acima de 10% ativa a condição C1 de risco.',
                              style={'color': TEXT_MUTED, 'fontSize': '13px', 'lineHeight': '1.6'}),
                 ], style={'flex': '1', 'padding': '18px', 'backgroundColor': BG_PAGE,
                           'borderRadius': '8px', 'borderLeft': f'3px solid {ROXO}'}),
 
                 html.Div([
-                    html.Div('buffer_emergencia', style={
+                    html.Div('perc_buffer', style={
                         'fontFamily': 'monospace', 'fontSize': '13px', 'fontWeight': '700',
                         'color': '#0891b2', 'marginBottom': '8px',
                         'backgroundColor': 'rgba(8,145,178,0.06)', 'display': 'inline-block',
                         'padding': '3px 10px', 'borderRadius': '4px',
                     }),
-                    html.Div([html.Code('Disposable_Income / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
+                    html.Div([html.Code('(Disposable_Income − Desired_Savings) / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
                              style={'marginBottom': '6px'}),
-                    html.Div('Percentual da renda que sobra livre após descontar a poupança desejada. '
-                             'Buffer abaixo de 10% ativa a condição C2 de risco.',
+                    html.Div('Margem livre após descontar a meta de poupança. '
+                             'Abaixo de 10% ativa a condição C2 de risco.',
                              style={'color': TEXT_MUTED, 'fontSize': '13px', 'lineHeight': '1.6'}),
                 ], style={'flex': '1', 'padding': '18px', 'backgroundColor': BG_PAGE,
                           'borderRadius': '8px', 'borderLeft': '3px solid #0891b2'}),
 
                 html.Div([
-                    html.Div('gastos_nao_essenciais', style={
+                    html.Div('perc_nao_essenciais', style={
                         'fontFamily': 'monospace', 'fontSize': '13px', 'fontWeight': '700',
                         'color': ERROR, 'marginBottom': '8px',
                         'backgroundColor': 'rgba(229,75,75,0.06)', 'display': 'inline-block',
@@ -842,23 +1245,23 @@ def classif_processamento():
                     }),
                     html.Div([html.Code('(Eating_Out + Entertainment) / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
                              style={'marginBottom': '6px'}),
-                    html.Div('Proporção da renda gasta em itens não essenciais. '
+                    html.Div('Proporção da renda em itens não essenciais. '
                              'Acima de 8,5% ativa a condição C3 de risco.',
                              style={'color': TEXT_MUTED, 'fontSize': '13px', 'lineHeight': '1.6'}),
                 ], style={'flex': '1', 'padding': '18px', 'backgroundColor': BG_PAGE,
                           'borderRadius': '8px', 'borderLeft': f'3px solid {ERROR}'}),
 
                 html.Div([
-                    html.Div('perc_economia_potencial', style={
+                    html.Div('perc_pot_groceries', style={
                         'fontFamily': 'monospace', 'fontSize': '13px', 'fontWeight': '700',
                         'color': SUCCESS, 'marginBottom': '8px',
                         'backgroundColor': 'rgba(46,125,50,0.06)', 'display': 'inline-block',
                         'padding': '3px 10px', 'borderRadius': '4px',
                     }),
-                    html.Div([html.Code('Potential_Savings / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
+                    html.Div([html.Code('Potential_Savings_Groceries / Income', style={'fontSize': '12px', 'color': '#7c3aed'})],
                              style={'marginBottom': '6px'}),
-                    html.Div('Soma dos cortes possíveis em relação à renda total. '
-                             'Acima de 8% indica economia não realizada (condição C4).',
+                    html.Div('Potencial de economia em supermercado em relação à renda. '
+                             'Acima de 8% indica C4 de risco.',
                              style={'color': TEXT_MUTED, 'fontSize': '13px', 'lineHeight': '1.6'}),
                 ], style={'flex': '1', 'padding': '18px', 'backgroundColor': BG_PAGE,
                           'borderRadius': '8px', 'borderLeft': f'3px solid {SUCCESS}'}),
@@ -869,13 +1272,14 @@ def classif_processamento():
         html.Div([
             html.H3('Regras de Negócio para Construção do Target', style=H3),
             html.P('O Risk Score de cada cliente varia de 0 a 4. Se o somatório das condições ativas for ≥ 2, '
-                   'a variável Vulnerable recebe valor 1 (alto risco). Caso contrário, valor 0 (seguro).',
+                   'a variável Vulnerable recebe valor 1 (alto risco). Caso contrário, valor 0 (seguro). '
+                   'O modelo é treinado para identificar os clientes seguros (0), perfil favorável para crédito.',
                    style={**P_STYLE, 'marginBottom': '20px'}),
             html_table(cond_headers, cond_rows),
             info_box([
                 html.Strong('Critério de ativação: '),
-                'Risk Score ≥ 2  →  Vulnerable = 1  |  Risk Score < 2  →  Vulnerable = 0'
-            ], border_color=ERROR),
+                'Risk Score ≥ 2  →  Vulnerable = 1 (evitar)  |  Risk Score < 2  →  Vulnerable = 0 (seguro, alvo do modelo)'
+            ], border_color=SUCCESS),
         ], style=CARD),
 
         html.Div([
@@ -883,8 +1287,8 @@ def classif_processamento():
             html.P('Após remover os 112 clientes com Desired_Savings = 0 (sem meta de poupança definida), a base de análise passa a ter 19.888 registros.', style={**P_STYLE, 'marginBottom': '16px'}),
             html.Div([
                 metric_card('Registros analisados', '19.888', ROXO),
-                metric_card('Seguros (classe 0)', '15.357  (~77,2%)', SUCCESS),
-                metric_card('Vulneráveis (classe 1)', '4.531  (~22,8%)', ERROR),
+                metric_card('Seguros (classe 0)', '15.790  (~79,4%)', SUCCESS),
+                metric_card('Vulneráveis (classe 1)', '4.098  (~20,6%)', ERROR),
             ], style={'display': 'grid', 'gridTemplateColumns': 'repeat(auto-fit, minmax(200px, 1fr))', 'gap': '16px'}),
         ], style=CARD),
     ])
@@ -898,62 +1302,60 @@ def classif_transformacao():
         html.Div([
             html.H3('Problema: Target Leakage', style={**H3, 'color': ERROR}),
             html.P(
-                'Como a variável-alvo (Vulnerable) foi sinteticamente construída a partir de indicadores '
-                'financeiros derivados (como o percentual de empréstimo e o buffer de emergência), incluir '
-                'essas mesmas variáveis na matriz de features permitiria que os algoritmos fizessem '
-                'engenharia reversa da regra de negócio, memorizando o resultado em vez de aprender '
-                'padrões preditivos genuínos.',
+                'A variável-alvo (Vulnerable) foi construída a partir de quatro indicadores derivados '
+                '(perc_emprestimo, perc_buffer, perc_nao_essenciais, perc_pot_groceries). Incluí-los '
+                'diretamente no modelo permitiria a engenharia reversa da regra de negócio, os '
+                'algoritmos memorizariam o resultado em vez de aprender padrões preditivos genuínos.',
                 style=P_STYLE
             ),
             info_box([
-                html.Strong('Decisão: '), 'As features derivadas utilizadas na construção do target foram '
-                'intencionalmente excluídas. A matriz final foi composta pelas ', html.Strong('11 variáveis '
-                'numéricas brutas'), ' (gastos absolutos e renda).'
+                html.Strong('Decisão: '), 'Os quatro indicadores usados no target foram excluídos. '
+                'A matriz final usa ', html.Strong('9 variáveis percentuais independentes'),
+                ' (rácios de gastos reais sobre a renda), sem nenhum dos componentes da fórmula do target.'
             ], border_color=ERROR),
         ], style=CARD),
 
         html.Div([
-            html.H3('Multicolinearidade, Decisão Consciente', style=H3),
+            html.H3('Engenharia de Features, Conversão para Rácios', style=H3),
             html.P(
-                'Ao usar apenas variáveis brutas, introduz-se multicolinearidade (os gastos absolutos '
-                'têm alta correlação com a renda). Essa decisão foi intencional: o objetivo era avaliar '
-                'empiricamente como cada arquitetura matemática lida com dados altamente colineares.',
-                style=P_STYLE
-            ),
-            dcc.Graph(id='ml-corr-fig', figure=_CORR_FIG, config=_GRAPH_CFG,
-                      style={'marginTop': '16px'}),
-        ], style=CARD),
-
-        html.Div([
-            html.H3('Padronização, StandardScaler', style=H3),
-            html.P(
-                'Foi aplicada a padronização via StandardScaler (média 0, desvio padrão 1) com o '
-                'objetivo de nivelar matematicamente a base de dados. Sem essa etapa, colunas com '
-                'valores numericamente altos (como Income) influenciariam os algoritmos de forma '
-                'desproporcional em relação às colunas com valores menores (como Age).',
+                'Cada gasto foi dividido pela renda do cliente, transformando valores absolutos em '
+                'proporções comparáveis. Isso neutraliza o viés de escala: um aluguel de R$2.000 '
+                'representa comprometimentos radicalmente distintos para quem ganha R$4.000 ou R$30.000. '
+                'Com rácios, o modelo aprende padrões comportamentais, não diferenças de poder aquisitivo.',
                 style=P_STYLE
             ),
             html.Div([
                 html.Span(f, style={
-                    'backgroundColor': 'rgba(29,18,82,0.08)', 'color': ROXO,
+                    'backgroundColor': 'rgba(46,125,50,0.08)', 'color': SUCCESS,
                     'borderRadius': '6px', 'padding': '7px 16px', 'fontSize': '13px', 'fontWeight': '600',
                     'display': 'inline-block',
                 }) for f in FEATURES
             ], style={'display': 'flex', 'flexWrap': 'wrap', 'gap': '12px 14px', 'marginTop': '16px'}),
+        ], style=CARD),
+
+        html.Div([
+            html.H3('Análise de Multicolinearidade entre Features', style=H3),
+            html.P(
+                'A matriz de correlação das 9 features preditoras confirma ausência de multicolinearidade '
+                'severa (nenhum par com |r| > 0,7), validando que os rácios são numericamente '
+                'independentes entre si. Isso torna o modelo de Regressão Logística matematicamente '
+                'estável sem necessidade de regularização adicional.',
+                style=P_STYLE
+            ),
+            dcc.Graph(id='ml-corr-fig', figure=_CORR_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '16px'}),
         ], style=CARD),
     ])
 
 
 def classif_mineracao():
     alg_rows = [
-        ['Regressão Logística', 'Linear',   'Interpretável, base referência'],
-        ['KNN',                 'Distância','Base/interpretável'],
-        ['SVM',                 'Kernel',   'Fronteiras não lineares'],
-        ['Random Forest',       'Ensemble', 'Bagging de árvores'],
-        ['Gradient Boosting',   'Ensemble', 'Boosting sequencial'],
-        ['XGBoost',             'Ensemble', 'Boosting otimizado'],
-        ['CatBoost v1',         'Ensemble', 'Hiperparâmetros padrão'],
-        ['CatBoost v2',         'Ensemble', 'Hiperparâmetros ajustados'],
+        ['Regressão Logística ★', 'Linear',   'Interpretável, maior AUC-ROC, selecionado'],
+        ['SVM',                   'Kernel',   'Pipeline com StandardScaler interno'],
+        ['Random Forest',         'Ensemble', 'Bagging de árvores de decisão'],
+        ['Gradient Boosting',     'Ensemble', 'Boosting sequencial com subsampling'],
+        ['XGBoost',               'Ensemble', 'Boosting otimizado com regularização'],
+        ['CatBoost',              'Ensemble', 'Boosting com tratamento nativo de categorias'],
     ]
 
     return html.Div([
@@ -963,8 +1365,8 @@ def classif_mineracao():
         html.Div([
             html.H3('Divisão Estratificada da Base', style=H3),
             html.P(
-                'Para garantir que os algoritmos não memorizem os dados de treino, a base foi dividida '
-                'de forma estratificada, preservando a proporção original entre classes:',
+                'A base foi dividida de forma estratificada (random_state=42), preservando a proporção '
+                'original entre as classes em treino e teste:',
                 style=P_STYLE
             ),
             html.Div([
@@ -974,79 +1376,101 @@ def classif_mineracao():
         ], style=CARD),
 
         html.Div([
-            html.H3('Algoritmos Avaliados, 8 Famílias', style=H3),
+            html.H3('Balanceamento de Classes', style=H3),
             html.P(
-                'Foram testadas diferentes famílias de aprendizado de máquina para garantir diversidade '
-                'analítica e identificar qual arquitetura melhor suporta o padrão de dados:',
+                'A base é desbalanceada (~79% seguros, ~21% vulneráveis). Para evitar que os modelos '
+                'ignorem a classe minoritária, foi aplicado um peso de classe proporcional ao inverso '
+                'da frequência: class_weight = {0: 1, 1: ratio × 0.8}, onde ratio = n_seguros / n_vulneráveis. '
+                'O SVM recebe esse mesmo peso via pipeline com StandardScaler interno.',
+                style=P_STYLE
+            ),
+        ], style=CARD),
+
+        html.Div([
+            html.H3('Algoritmos Avaliados, 6 Famílias', style=H3),
+            html.P(
+                'Foram testadas seis famílias de aprendizado de máquina para garantir diversidade '
+                'analítica e identificar a arquitetura que melhor generaliza o padrão de crédito seguro:',
                 style=P_STYLE
             ),
             html_table(['Algoritmo', 'Paradigma', 'Justificativa'], alg_rows),
         ], style=CARD),
 
         html.Div([
-            html.H3('Critério de Seleção, Recall da Classe Vulnerável', style={**H3, 'color': ERROR}),
+            html.H3('Critério de Seleção, Recall e Precision para Seguro', style={**H3, 'color': SUCCESS}),
             html.P(
-                'O critério decisivo de seleção foi o Recall da classe vulnerável (1). Esta escolha '
-                'reflete a realidade do negócio:',
+                'As métricas prioritárias do critério de seleção foram Recall e Precisão para a classe Seguro (0): '
+                'recall mede quantos clientes seguros o modelo efetivamente identifica, enquanto precisão mede '
+                'quantos dos aprovados são de fato seguros. O F1-Score sintetiza o equilíbrio entre ambas e o '
+                'AUC-ROC avalia a separabilidade geral. A Regressão Logística obteve o maior AUC-ROC (0,6529) '
+                'entre todos os modelos testados, com Recall = 0,80 e Precisão = 0,83 para a classe Seguro, '
+                'garantindo que bons clientes sejam aprovados sem expor a carteira a risco.',
                 style=P_STYLE
             ),
             info_box([
-                html.Strong('Em análise de risco de crédito, '),
-                'o prejuízo de aprovar um mau pagador (falso negativo) é muito superior ao custo de '
-                'negar crédito por engano a um cliente seguro (falso positivo). Portanto, maximizar '
-                'o Recall da classe 1 é a prioridade.'
-            ], border_color=ERROR),
+                html.Strong('Lógica de negócio: '),
+                'identificar corretamente os clientes seguros permite expandir a concessão de crédito com '
+                'confiança. Falsos negativos (seguros classificados como vulneráveis) representam oportunidades '
+                'perdidas; falsos positivos (vulneráveis liberados) representam risco de inadimplência. '
+                'O modelo busca o equilíbrio ótimo entre esses dois erros.'
+            ], border_color=SUCCESS),
         ], style=CARD),
     ])
 
 
 def classif_resultados():
+    # Tabela consolidada — 6 algoritmos, métricas reais do notebook
     metrics_headers = ['Modelo', 'Métrica', 'Seguro (0)', 'Vulnerável (1)', 'Média', 'Ponderada']
     metrics_rows = [
-        ['SVM',                  'Precisão',  '0,971', '0,739', '0,855', '0,918'],
-        ['SVM',                  'Recall',    '0,906', '0,907', '0,906', '0,906'],
-        ['SVM',                  'F1-Score',  '0,937', '0,815', '0,876', '0,909'],
-        ['SVM',                  'Acurácia',  '—',     '—',     '0,906', '—'],
-        ['CatBoost v1',          'Precisão',  '0,948', '0,903', '0,925', '0,937'],
-        ['CatBoost v1',          'Recall',    '0,974', '0,818', '0,896', '0,938'],
-        ['CatBoost v1',          'F1-Score',  '0,961', '0,858', '0,909', '0,937'],
-        ['CatBoost v1',          'Acurácia',  '—',     '—',     '0,938', '—'],
-        ['CatBoost v2',          'Precisão',  '0,968', '0,827', '0,898', '0,936'],
-        ['CatBoost v2',          'Recall',    '0,945', '0,894', '0,920', '0,933'],
-        ['CatBoost v2',          'F1-Score',  '0,956', '0,859', '0,908', '0,934'],
-        ['CatBoost v2',          'Acurácia',  '—',     '—',     '0,933', '—'],
-        ['Regressão Logística ★','Precisão',  '0,980', '0,710', '0,840', '0,910'],
-        ['Regressão Logística ★','Recall',    '0,890', '0,920', '0,910', '0,900'],
-        ['Regressão Logística ★','F1-Score',  '0,930', '0,800', '0,870', '0,900'],
-        ['Regressão Logística ★','Acurácia',  '—',     '—',     '0,900', '—'],
-        ['Regressão Logística ★','AUC-ROC',   '—',     '—',     '—',     '0,9506'],
-        ['Random Forest',        'Precisão',  '0,940', '0,920', '0,930', '0,940'],
-        ['Random Forest',        'Recall',    '0,980', '0,800', '0,890', '0,940'],
-        ['Random Forest',        'F1-Score',  '0,960', '0,850', '0,905', '0,940'],
-        ['Random Forest',        'Acurácia',  '—',     '—',     '0,940', '—'],
-        ['Random Forest',        'AUC-ROC',   '—',     '—',     '—',     '0,9724'],
-        ['Gradient Boosting',    'Precisão',  '0,940', '0,880', '0,910', '0,920'],
-        ['Gradient Boosting',    'Recall',    '0,970', '0,780', '0,880', '0,930'],
-        ['Gradient Boosting',    'F1-Score',  '0,950', '0,830', '0,890', '0,920'],
-        ['Gradient Boosting',    'Acurácia',  '—',     '—',     '0,930', '—'],
-        ['Gradient Boosting',    'AUC-ROC',   '—',     '—',     '—',     '0,9631'],
-        ['XGBoost',              'Precisão',  '0,960', '0,840', '0,900', '0,930'],
-        ['XGBoost',              'Recall',    '0,950', '0,870', '0,910', '0,930'],
-        ['XGBoost',              'F1-Score',  '0,960', '0,850', '0,900', '0,930'],
-        ['XGBoost',              'Acurácia',  '—',     '—',     '0,930', '—'],
-        ['XGBoost',              'AUC-ROC',   '—',     '—',     '—',     '0,9759'],
-        ['KNN',                  'Precisão',  '0,920', '0,840', '0,880', '0,900'],
-        ['KNN',                  'Recall',    '0,960', '0,740', '0,850', '0,910'],
-        ['KNN',                  'F1-Score',  '0,940', '0,780', '0,860', '0,900'],
-        ['KNN',                  'Acurácia',  '—',     '—',     '0,910', '—'],
-        ['KNN',                  'AUC-ROC',   '—',     '—',     '—',     '0,9277'],
+        ['Regressão Logística ★', 'Precisão',  '0,830', '0,310', '0,570', '0,720'],
+        ['Regressão Logística ★', 'Recall',    '0,800', '0,350', '0,570', '0,710'],
+        ['Regressão Logística ★', 'F1-Score',  '0,810', '0,330', '0,570', '0,710'],
+        ['Regressão Logística ★', 'Acurácia',  '—',     '—',     '0,710', '—'],
+        ['Regressão Logística ★', 'AUC-ROC',   '—',     '—',     '—',     '0,6529'],
+        ['Random Forest',         'Precisão',  '0,800', '0,530', '0,660', '0,740'],
+        ['Random Forest',         'Recall',    '1,000', '0,010', '0,500', '0,790'],
+        ['Random Forest',         'F1-Score',  '0,880', '0,020', '0,450', '0,710'],
+        ['Random Forest',         'Acurácia',  '—',     '—',     '0,790', '—'],
+        ['Random Forest',         'AUC-ROC',   '—',     '—',     '—',     '0,6144'],
+        ['Gradient Boosting',     'Precisão',  '0,790', '0,330', '0,560', '0,700'],
+        ['Gradient Boosting',     'Recall',    '1,000', '0,000', '0,500', '0,790'],
+        ['Gradient Boosting',     'F1-Score',  '0,880', '0,000', '0,440', '0,700'],
+        ['Gradient Boosting',     'Acurácia',  '—',     '—',     '0,790', '—'],
+        ['Gradient Boosting',     'AUC-ROC',   '—',     '—',     '—',     '0,6512'],
+        ['XGBoost',               'Precisão',  '0,820', '0,280', '0,550', '0,710'],
+        ['XGBoost',               'Recall',    '0,760', '0,360', '0,560', '0,680'],
+        ['XGBoost',               'F1-Score',  '0,790', '0,320', '0,550', '0,690'],
+        ['XGBoost',               'Acurácia',  '—',     '—',     '0,680', '—'],
+        ['XGBoost',               'AUC-ROC',   '—',     '—',     '—',     '0,6099'],
+        ['SVM',                   'Precisão',  '0,840', '0,300', '0,570', '0,730'],
+        ['SVM',                   'Recall',    '0,710', '0,480', '0,590', '0,660'],
+        ['SVM',                   'F1-Score',  '0,770', '0,370', '0,570', '0,690'],
+        ['SVM',                   'Acurácia',  '—',     '—',     '0,660', '—'],
+        ['SVM',                   'AUC-ROC',   '—',     '—',     '—',     '0,6431'],
+        ['CatBoost',              'Precisão',  '0,820', '0,290', '0,560', '0,710'],
+        ['CatBoost',              'Recall',    '0,760', '0,380', '0,570', '0,680'],
+        ['CatBoost',              'F1-Score',  '0,790', '0,330', '0,560', '0,690'],
+        ['CatBoost',              'Acurácia',  '—',     '—',     '0,680', '—'],
+        ['CatBoost',              'AUC-ROC',   '—',     '—',     '—',     '0,6267'],
     ]
 
-    seg_headers = ['Nível de Risco', 'Clientes', '% da Base', 'Prob. Média', 'Empréstimo Médio', 'Exposição Mensal']
+    # Comparativo final — ordenado por F1 (Seguro) decrescente
+    comp_headers = ['Modelo', 'Precisão (Seguro)', 'Recall (Seguro)', 'F1 (Seguro)']
+    comp_rows = [
+        ['Random Forest',         '0,800', '1,000', '0,880'],
+        ['Gradient Boosting',     '0,790', '1,000', '0,880'],
+        ['Regressão Logística ★', '0,830', '0,800', '0,810'],
+        ['XGBoost',               '0,820', '0,760', '0,790'],
+        ['CatBoost',              '0,820', '0,760', '0,790'],
+        ['SVM',                   '0,840', '0,710', '0,770'],
+    ]
+
+    # Segmentação por confiança — dados reais do notebook (bloco 13)
+    seg_headers = ['Perfil de Confiança', 'Clientes', '% da Base', 'Prob. Média (Seguro)', 'Renda Média', 'Empréstimo Médio', 'Exposição Mensal']
     seg_rows = [
-        ['Baixo (< 30%)', '11.629', '58,5%', '7,6%',  'R$ 374',   'R$ 4.350.889'],
-        ['Médio (30–60%)', '2.999', '15,1%', '43,3%', 'R$ 1.252', 'R$ 3.754.638'],
-        ['Alto (> 60%)',   '5.260', '26,4%', '86,7%', 'R$ 6.073', 'R$ 31.945.316'],
+        ['Alta confiança (≥ 70%)',      '2.580',  '13,0%', '73,7%', 'R$ 41.810', 'R$ 2.052', 'R$ 5.294.869'],
+        ['Moderada confiança (40–70%)', '15.094', '75,9%', '56,9%', 'R$ 41.439', 'R$ 2.054', 'R$ 31.003.076'],
+        ['Baixa confiança (< 40%)',     '2.214',  '11,1%', '37,5%', 'R$ 42.119', 'R$ 1.696', 'R$ 3.754.944'],
     ]
 
     return html.Div([
@@ -1057,29 +1481,43 @@ def classif_resultados():
         html.Div([
             html.Div([
                 html.Div([badge('MODELO SELECIONADO', SUCCESS)], style={'marginBottom': '8px'}),
-                html.H3('Regressão Logística', style={**H3, 'marginTop': '4px', 'fontSize': '22px'}),
+                html.H3('Regressão Logística, Foco: Identificar Clientes Seguros', style={**H3, 'marginTop': '4px', 'fontSize': '20px'}),
                 html.P(
-                    'Entre os oito algoritmos comparados, a Regressão Logística foi selecionada por '
-                    'apresentar o melhor Recall da classe vulnerável (0,92). Embora outros modelos como '
-                    'CatBoost e XGBoost apresentem maior acurácia geral, o critério de negócio prioriza '
-                    'a detecção correta dos vulneráveis, onde a Regressão Logística se destaca.',
+                    'Entre os seis algoritmos comparados, a Regressão Logística foi selecionada por '
+                    'apresentar o maior AUC-ROC (0,6529) e o melhor equilíbrio entre precisão e recall '
+                    'para a classe Seguro (0). O foco do modelo mudou: em vez de detectar vulneráveis, '
+                    'o objetivo agora é identificar bons clientes para concessão de crédito com confiança.',
                     style=P_STYLE
                 ),
                 html.Div([
-                    metric_card('Recall (Vulnerável)',  '0,92',   SUCCESS),
-                    metric_card('Acurácia Geral',       '90,0%',  ROXO),
-                    metric_card('AUC-ROC',              '0,9506', '#6366f1'),
-                    metric_card('F1 (Vulnerável)',      '0,800',  '#0891b2'),
-                ], style={'display': 'grid', 'gridTemplateColumns': 'repeat(auto-fit, minmax(160px, 1fr))',
+                    metric_card('Precisão (Seguro)',  '0,830',  SUCCESS),
+                    metric_card('Recall (Seguro)',    '0,800',  SUCCESS),
+                    metric_card('F1 (Seguro)',        '0,810',  ROXO),
+                    metric_card('AUC-ROC',            '0,6529', '#6366f1'),
+                    metric_card('Acurácia Geral',     '71,0%',  '#0891b2'),
+                ], style={'display': 'grid', 'gridTemplateColumns': 'repeat(auto-fit, minmax(150px, 1fr))',
                           'gap': '16px', 'marginTop': '16px'}),
             ]),
         ], style=CARD),
 
-        # Comparativo completo de algoritmos
+        # Tabela consolidada — todos os modelos
         html.Div([
-            html.H3('Comparativo Completo, 8 Algoritmos (Tabela 5)', style=H3),
-            html.P('Linhas marcadas com ★ indicam o modelo selecionado para produção.', style={**P_STYLE, 'marginBottom': '16px'}),
+            html.H3('Tabela Consolidada de Métricas, 6 Algoritmos (Tabela 5)', style=H3),
+            html.P('Métricas reais obtidas no conjunto de teste (20% da base). ★ indica o modelo selecionado.', style={**P_STYLE, 'marginBottom': '16px'}),
             html.Div(html_table(metrics_headers, metrics_rows),
+                     style={'overflowX': 'auto'}),
+        ], style=CARD),
+
+        # Comparativo final ordenado por F1 (Seguro)
+        html.Div([
+            html.H3('Comparativo Final, Ordenado por F1 (Seguro) (Tabela 5b)', style=H3),
+            html.P(
+                'Ranking dos modelos pela capacidade de identificar clientes seguros, métrica central '
+                'para decisão de concessão de crédito. Modelos com recall=1,000 para Seguro (Random Forest '
+                'e Gradient Boosting) aprovam praticamente todos os seguros, mas sacrificam a precisão, '
+                'aceitam mais vulneráveis por engano. A Regressão Logística oferece o melhor equilíbrio.',
+                style={**P_STYLE, 'marginBottom': '16px'}),
+            html.Div(html_table(comp_headers, comp_rows, highlight_row=2),
                      style={'overflowX': 'auto'}),
         ], style=CARD),
 
@@ -1087,9 +1525,10 @@ def classif_resultados():
         html.Div([
             html.H3('Interpretabilidade, Matriz de Confusão', style=H3),
             html.P(
-                'O modelo alcançou Recall de 0,92, identificando corretamente 842 dos 906 clientes '
-                'vulneráveis reais. Os 64 casos restantes (7%) representam falsos negativos. '
-                'Na prática, a cada 10 clientes vulneráveis o modelo acerta aproximadamente 9.',
+                'O modelo identificou corretamente 2.522 dos 3.158 clientes seguros no conjunto de teste '
+                '(Recall Seguro: 79,9%). Os 636 falsos positivos (seguros previstos como vulneráveis) '
+                'representam oportunidades de crédito conservadoramente negadas. Os 532 falsos negativos '
+                '(vulneráveis aprovados como seguros) representam o risco residual da carteira.',
                 style=P_STYLE
             ),
             dcc.Graph(id='ml-cm-fig', figure=_CM_FIG, config=_GRAPH_CFG,
@@ -1100,10 +1539,10 @@ def classif_resultados():
         html.Div([
             html.H3('Explicabilidade, SHAP e Princípio de Pareto', style=H3),
             html.P(
-                'A interpretabilidade do modelo foi obtida via SHAP, técnica que quantifica a '
-                'contribuição de cada variável na previsão individual. A análise de Pareto '
-                'confirmou que um conjunto reduzido de variáveis (~27%), com destaque para '
-                'endividamento e renda disponível, responde pela maior parte do poder preditivo.',
+                'Os SHAP values quantificam a contribuição de cada feature para a predição da classe '
+                'Seguro em cada cliente. Analisando apenas os clientes verdadeiramente seguros, '
+                'Rent_Ratio responde por ~49,5% do poder explicativo e, junto com Groceries_Ratio '
+                'e Education_Ratio, cobre mais de 82% da importância acumulada (Princípio de Pareto).',
                 style=P_STYLE
             ),
             html.Div([
@@ -1115,79 +1554,89 @@ def classif_resultados():
                 ], style={'flex': '1', 'minWidth': '320px'}),
             ], style={'display': 'flex', 'gap': '24px', 'flexWrap': 'wrap'}),
             info_box([
-                html.Strong('Variáveis mais impactantes: '),
-                'Loan_Repayment e Disposable_Income, ambas interpretáveis e diretamente acionáveis '
-                'em estratégias de risco de crédito. Aproximadamente 27% das features respondem '
-                'pela maior parte do poder preditivo do modelo.'
-            ]),
+                html.Strong('Variáveis mais impactantes (perspectiva Seguro): '),
+                'Rent_Ratio (44,1%), Education_Ratio (28,8%) e Groceries_Ratio (8,9%), '
+                'juntas explicam 81,8% do poder preditivo. São rácios diretamente acionáveis: '
+                'clientes com comprometimento de aluguel e educação abaixo de certos limiares '
+                'têm perfil financeiro mais estável e favorável à concessão de crédito.'
+            ], border_color=SUCCESS),
+        ], style=CARD),
+
+        # Cross-Validation
+        html.Div([
+            html.H3('Cross-Validation, Regressão Logística (5 Folds, Foco: Seguro)', style=H3),
+            html.P(
+                'A validação cruzada estratificada com 5 folds confirma a estabilidade do modelo: '
+                'os desvios-padrão são muito baixos, indicando que o desempenho se generaliza '
+                'consistentemente para dados não vistos.',
+                style=P_STYLE
+            ),
+            dcc.Graph(id='ml-cv-fig', figure=_CV_FIG, config=_GRAPH_CFG,
+                      style={'marginTop': '8px'}),
         ], style=CARD),
 
         # Segmentação por probabilidade
         html.Div([
-            html.H3('Segmentação por Probabilidade (Tabela 6)', style=H3),
+            html.H3('Segmentação por Confiança de Ser Seguro (Tabela 6)', style=H3),
             html.P(
-                'Em vez da classificação binária, o modelo foi aplicado à base completa via '
-                'predict_proba para segmentar clientes em três faixas operacionais de risco. '
-                'A lógica: dois clientes classificados como vulneráveis podem exigir respostas '
-                'diferentes com base em sua probabilidade individual.',
+                'O modelo foi aplicado à base completa via predict_proba para segmentar clientes '
+                'em três perfis de confiança. Clientes com probabilidade ≥ 70% de serem seguros '
+                'representam o público prioritário para produtos de crédito, perfil mais estável '
+                'e menor risco de inadimplência.',
                 style=P_STYLE
             ),
             html_table(seg_headers, seg_rows),
             info_box([
-                html.Strong('Conclusão: '),
-                '8.259 clientes em risco médio/alto (41,5% da base) representam exposição mensal de '
-                'R$ 35,7 milhões, com potencial de R$ 10,7 milhões em inadimplências evitáveis '
-                'mediante intervenção antecipada em 30% dos casos.'
+                html.Strong('Conclusão operacional: '),
+                '2.580 clientes com alta confiança de ser seguro (13,0% da base) são candidatos '
+                'imediatos para aprovação de crédito, com exposição mensal de R$ 5,29 milhões. '
+                'O grupo de moderada confiança (75,9%) pode ser abordado com produtos de menor limite '
+                'ou análise complementar, ampliando a base elegível de forma controlada.'
             ], border_color=SUCCESS),
         ], style=CARD),
 
         # ── Previsão Individual ──────────────────────────────────────────────────
         html.Div([
             html.Div([badge('PREVISÃO INDIVIDUAL')], style={'marginBottom': '12px'}),
-            html.H3('Simular Vulnerabilidade de um Cliente', style={**H3, 'marginTop': '0'}),
+            html.H3('Simular Perfil de Crédito de um Cliente', style={**H3, 'marginTop': '0'}),
             html.P(
                 'Preencha os dados financeiros do cliente e execute o modelo de Regressão Logística '
-                'para obter a probabilidade de vulnerabilidade e os indicadores de risco individuais.',
+                'para obter a probabilidade de ser Seguro e o perfil de elegibilidade para crédito.',
                 style={**P_STYLE, 'marginBottom': '24px'}
             ),
 
-            # Grid de inputs
+            # Grid de inputs — exatamente as 9 variáveis do modelo
             html.Div([
-                # Coluna 1 — Perfil & Renda
+                # Coluna 1 — Perfil
                 html.Div([
-                    html.Div('Perfil & Renda', style={
+                    html.Div('Perfil', style={
                         'fontWeight': '700', 'color': ROXO, 'fontSize': '12px',
                         'textTransform': 'uppercase', 'letterSpacing': '0.8px', 'marginBottom': '16px',
                     }),
-                    _ip_field('income',       'Renda Mensal (R$)',           35000),
-                    _ip_field('age',          'Idade',                       35),
-                    _ip_field('dependents',   'Nº de Dependentes',            2),
-                    _ip_field('loan',         'Parcela de Empréstimo (R$)',  3000),
-                    _ip_field('disposable',   'Renda Disponível (R$)',       8000),
-                    _ip_field('savings',      'Poupança Desejada (R$)',      2500),
-                ], style={'flex': '1', 'minWidth': '240px'}),
+                    _ip_field('income',     'Renda Mensal (R$)', 35000),
+                    _ip_field('age',        'Idade',             35),
+                    _ip_field('dependents', 'Nº de Dependentes',  2),
+                ], style={'flex': '1', 'minWidth': '200px'}),
 
-                # Coluna 2 — Gastos Mensais
+                # Coluna 2 — Gastos Mensais (7 variáveis do modelo)
                 html.Div([
                     html.Div('Gastos Mensais', style={
                         'fontWeight': '700', 'color': '#0891b2', 'fontSize': '12px',
                         'textTransform': 'uppercase', 'letterSpacing': '0.8px', 'marginBottom': '16px',
                     }),
-                    _ip_field('rent',          'Aluguel (R$)',         7000),
-                    _ip_field('groceries',     'Supermercado (R$)',    3000),
-                    _ip_field('eating-out',    'Alimentação Fora (R$)',2000),
-                    _ip_field('entertainment', 'Entretenimento (R$)',  1500),
-                    _ip_field('healthcare',    'Saúde (R$)',            800),
-                    _ip_field('pot-savings',   'Potencial de Economia (R$)', 1000,
-                              hint='Estime quanto poderia economizar reduzindo gastos supérfluos '
-                                   '(ex.: alimentação fora, streaming, entretenimento). '
-                                   'Usado para análise da condição C4 — não altera o modelo de IA.'),
-                ], style={'flex': '1', 'minWidth': '240px'}),
+                    _ip_field('rent',        'Aluguel (R$)',      7000),
+                    _ip_field('healthcare',  'Saúde (R$)',         800),
+                    _ip_field('education',   'Educação (R$)',     2000),
+                    _ip_field('groceries',   'Supermercado (R$)', 3000),
+                    _ip_field('transport',   'Transporte (R$)',   1500),
+                    _ip_field('utilities',   'Utilidades (R$)',    800),
+                    _ip_field('insurance',   'Seguro (R$)',        600),
+                ], style={'flex': '1', 'minWidth': '200px'}),
             ], style={'display': 'flex', 'gap': '40px', 'flexWrap': 'wrap', 'marginBottom': '24px',
                       'backgroundColor': BG_PAGE, 'padding': '24px', 'borderRadius': '10px',
                       'border': f'1px solid {BORDER}'}),
 
-            html.Button('Prever Vulnerabilidade', id='ip-predict-btn', n_clicks=0, style={
+            html.Button('Prever Perfil de Crédito', id='ip-predict-btn', n_clicks=0, style={
                 'backgroundColor': ROXO, 'color': BRANCO, 'border': 'none',
                 'padding': '13px 32px', 'borderRadius': '8px',
                 'fontWeight': '700', 'cursor': 'pointer', 'fontSize': '14px',
@@ -1203,27 +1652,38 @@ def classif_resultados():
             html.Div([badge('DEMO INTERATIVA')], style={'marginBottom': '12px'}),
             html.H3('Rodar o Modelo na Base Completa', style={**H3, 'marginTop': '0'}),
             html.P(
-                'Execute o modelo de vulnerabilidade na base de 20.000 registros e explore a '
-                'distribuição de risco com threshold ajustável.',
-                style={**P_STYLE, 'marginBottom': '20px'}
+                'Execute o modelo de perfil de crédito na base de 19.888 registros e explore a '
+                'distribuição de clientes seguros e vulneráveis com threshold ajustável.',
+                style={**P_STYLE, 'marginBottom': '8px'}
             ),
+            info_box([
+                html.Strong('Intervalo real de probabilidades do modelo: '),
+                'A Regressão Logística com AUC-ROC 0,6529 produz p(Vulnerável) entre ',
+                html.Strong('0,19 e 0,69'),
+                ' — nenhum cliente atinge 70% de probabilidade de vulnerabilidade. '
+                'Isso é esperado para discriminação moderada. ',
+                html.Strong('Threshold padrão 0,50'),
+                ': ~4.700 Vulneráveis / ~15.188 Seguros, alinhado com a matriz de confusão do notebook.'
+            ], border_color=ROXO),
             html.Div([
                 html.Div([
                     html.Div([
-                        html.Span('Sensibilidade (Threshold):', style={'fontWeight': '600'}),
+                        html.Span('Threshold p(Vulnerável):', style={'fontWeight': '600'}),
                         html.Span(' '),
                         html.Span('0.50', id='ml-threshold-val', style={
                             'fontWeight': '700', 'color': ROXO,
                             'backgroundColor': '#f0eeff', 'borderRadius': '4px',
                             'padding': '2px 8px', 'fontSize': '13px',
                         }),
+                        html.Span('  (intervalo útil: 0,19 – 0,69)',
+                                  style={'color': TEXT_MUTED, 'fontSize': '11px', 'marginLeft': '8px'}),
                     ], style={'marginBottom': '10px'}),
                     dcc.Slider(
-                        id='ml-threshold', min=0.0, max=1.0, step=0.01, value=0.5,
+                        id='ml-threshold', min=0.10, max=0.70, step=0.01, value=0.5,
                         marks={
-                            0.0: {'label': 'Mais Seguros',  'style': {'whiteSpace': 'nowrap', 'color': SUCCESS}},
-                            0.5: {'label': 'Padrão',        'style': {'whiteSpace': 'nowrap', 'color': TEXT_MUTED}},
-                            1.0: {'label': 'Mais Críticos', 'style': {'whiteSpace': 'nowrap', 'color': ERROR}},
+                            0.10: {'label': '0,10 — máx. Vulneráveis', 'style': {'whiteSpace': 'nowrap', 'color': ERROR}},
+                            0.50: {'label': '0,50 — padrão',           'style': {'whiteSpace': 'nowrap', 'color': TEXT_MUTED}},
+                            0.69: {'label': '0,69 — máx. prob. modelo','style': {'whiteSpace': 'nowrap', 'color': SUCCESS}},
                         },
                         tooltip={'always_visible': False},
                     ),
@@ -1331,7 +1791,7 @@ def cluster_processamento():
                 'da segmentação, indicando que as componentes principais capturam estrutura '
                 'latente mais relevante do que as variáveis originais.'
             ], border_color=SUCCESS),
-            dcc.Graph(id='cl-pca-var-fig', figure=_CLUST_PCA_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-pca-var-fig', figure=_CL_PCA_VAR_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
         ], style=CARD),
     ])
@@ -1387,7 +1847,7 @@ def cluster_transformacao():
                 'presente nas variáveis brutas.',
                 style=P_STYLE
             ),
-            dcc.Graph(id='cl-corr-fig', figure=_CLUST_CORR_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-corr-fig', figure=_CL_CORR_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
         ], style=CARD),
     ])
@@ -1432,7 +1892,7 @@ def cluster_mineracao():
             ], style={'paddingLeft': '20px', 'lineHeight': '1.8', 'fontSize': '15px', 'marginBottom': '20px'}),
             html.H4('Teste de Múltiplos Valores de Epsilon (Tabela 7)', style={'color': TEXT_MAIN, 'marginBottom': '12px'}),
             html_table(eps_headers, eps_rows, highlight_row=1),
-            dcc.Graph(id='cl-kdist-fig', figure=_CLUST_KDIST_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-kdist-fig', figure=_CL_KDIST_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
             info_box([
                 html.Strong('eps = 0,70 selecionado: '),
@@ -1463,7 +1923,7 @@ def cluster_mineracao():
                     html.Div('Visualização individual por cluster para detectar grupos subótimos.', style={'color': TEXT_MUTED, 'fontSize': '13px'}),
                 ], style={'padding': '16px', 'backgroundColor': BG_PAGE, 'borderRadius': '8px', 'flex': '1'}),
             ], style={'display': 'flex', 'gap': '12px', 'flexWrap': 'wrap', 'marginBottom': '20px'}),
-            dcc.Graph(id='cl-elbow-fig', figure=_CLUST_ELBOW_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-elbow-sil-fig', figure=_CL_ELBOW_SIL_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
             html.H4('Silhouette Diagram por Cluster (Gráfico 21)', style={'color': ROXO, 'marginTop': '20px', 'marginBottom': '10px'}),
             html.P(
@@ -1472,7 +1932,7 @@ def cluster_mineracao():
                 'K=5 produz separação homogênea sem clusters dominantes ou degenerados.',
                 style=P_STYLE
             ),
-            dcc.Graph(id='cl-sil-fig', figure=_CLUST_SIL_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-silh-diag-fig', figure=_CL_SILH_DIAG_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
         ], style=CARD),
 
@@ -1629,7 +2089,7 @@ def cluster_resultados():
                 'captura estruturas reais nos dados, não artefatos do algoritmo.',
                 style=P_STYLE
             ),
-            dcc.Graph(id='cl-2d-fig', figure=_CLUST_2D_FIG, config=_GRAPH_CFG,
+            dcc.Graph(id='cl-pca2d-fig', figure=_CL_PCA2D_FIG, config=_GRAPH_CFG,
                       style={'marginTop': '16px'}),
 
             html.H3('Interpretabilidade, Modelo Surrogate (Random Forest + SHAP)', style={**H3, 'marginTop': '24px'}),
@@ -1640,27 +2100,29 @@ def cluster_resultados():
                 style=P_STYLE
             ),
 
-            html.H4('SHAP Global, Importância das Variáveis (Gráfico 30)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
-            html.P(
-                'Gap_Poupanca, Disposable_pct, Rent_pct, Loan_Repayment_pct e City_Tier_enc '
-                'são as variáveis discriminantes de maior impacto. As 5 personas se diferenciam '
-                'principalmente nas dimensões de folga de renda e comprometimento com aluguel e dívida.',
-                style={**P_STYLE, 'marginBottom': '12px'}
-            ),
-            dcc.Graph(id='cl-shap-fig', figure=_CLUST_SHAP_FIG, config=_GRAPH_CFG,
-                      style={'marginTop': '8px'}),
-        ], style=CARD),
+            html.Div([
+                html.Div([
+                    html.H4('SHAP Global, Importância das Variáveis (Gráfico 30)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
+                    html.P(
+                        'Gap_Poupanca, Disposable_pct, Rent_pct, Loan_Repayment_pct e City_Tier_enc '
+                        'são as variáveis discriminantes de maior impacto. As 5 personas se diferenciam '
+                        'principalmente nas dimensões de folga de renda e comprometimento com aluguel e dívida.',
+                        style={**P_STYLE, 'marginBottom': '12px'}
+                    ),
+                    dcc.Graph(id='cl-shap-fig', figure=_CL_SHAP_FIG, config=_GRAPH_CFG),
+                ], style={'flex': '1', 'minWidth': '280px'}),
 
-        html.Div([
-            html.H3('Princípio de Pareto, Comprometimento por Cluster (Gráfico 29)', style=H3),
-            html.P(
-                'Rent_pct é a categoria de maior peso em quatro dos cinco clusters. '
-                'A exceção é o Cluster 3 (O Poupador Agressivo), onde Loan_Repayment_pct assume '
-                'a posição dominante, reforçando a separação comportamental entre os perfis.',
-                style={**P_STYLE, 'marginBottom': '12px'}
-            ),
-            dcc.Graph(id='cl-pareto-fig', figure=_CLUST_PARETO_FIG, config=_GRAPH_CFG,
-                      style={'marginTop': '8px'}),
+                html.Div([
+                    html.H4('Princípio de Pareto, Comprometimento por Cluster (Gráfico 29)', style={'color': ROXO, 'marginBottom': '10px', 'fontSize': '15px'}),
+                    html.P(
+                        'Rent_pct é a categoria de maior peso em quatro dos cinco clusters. '
+                        'A exceção é o Cluster 3 (O Poupador Agressivo), onde Loan_Repayment_pct assume '
+                        'a posição dominante, reforçando a separação comportamental entre os perfis.',
+                        style={**P_STYLE, 'marginBottom': '12px'}
+                    ),
+                    dcc.Graph(id='cl-pareto-fig', figure=_CL_PARETO_FIG, config=_GRAPH_CFG),
+                ], style={'flex': '1', 'minWidth': '280px'}),
+            ], style={'display': 'flex', 'gap': '28px', 'flexWrap': 'wrap', 'marginTop': '8px'}),
         ], style=CARD),
 
         # Comparativo
@@ -1686,8 +2148,9 @@ def cluster_resultados():
             html.H3('Personas Identificadas', style={**H3, 'marginTop': '4px', 'fontSize': '20px'}),
             html.P(
                 'O K-Means++ identificou 5 perfis financeiros comportamentais distintos. '
-                'Em combinação com o modelo de classificação, é possível não apenas prever '
-                'o risco de inadimplência, mas identificar o padrão financeiro que origina esse risco.',
+                'Em combinação com o modelo de classificação — que foca em prever clientes seguros '
+                'com bom potencial de crédito — é possível não só identificar o perfil comportamental '
+                'de cada cliente, mas também priorizar concessões de crédito com confiança.',
                 style=P_STYLE
             ),
             html.Div(persona_cards,
@@ -1711,7 +2174,7 @@ def cluster_resultados():
                                       'display': 'flex', 'alignItems': 'center', 'padding': '0 8px'}),
                 html.Div([
                     html.Div('Classificação', style={'fontWeight': '700', 'color': ROXO, 'marginBottom': '6px', 'fontSize': '15px'}),
-                    html.Div('Determina se há probabilidade de inadimplência para aquele perfil.', style={'color': TEXT_MUTED, 'fontSize': '14px'}),
+                    html.Div('Prevê quais clientes são seguros e têm potencial de crédito favorável — foco em identificar bons pagadores, não apenas evitar maus.', style={'color': TEXT_MUTED, 'fontSize': '14px'}),
                 ], style={'flex': '1', 'padding': '20px', 'backgroundColor': 'rgba(29,18,82,0.06)',
                           'borderRadius': '8px', 'borderLeft': '4px solid ' + ROXO}),
                 html.Div('=', style={'fontSize': '28px', 'fontWeight': '300', 'color': TEXT_MUTED,
@@ -1891,38 +2354,54 @@ def register_ml_callbacks(app):
     def _load_model():
         """
         Carrega o payload numpy puro (sem sklearn em runtime).
-        Retorna: (coef, intercept, scaler_mean, scaler_scale, features)
+        Novo modelo: LogisticRegression direta sobre rácios, sem StandardScaler.
+        Retorna: (coef, intercept, features)
         """
         p = joblib.load(MODEL_PATH)
-        coef   = np.array(p['coef'])          # (1, 11)
+        coef      = np.array(p['coef'])       # (1, 9)
         intercept = np.array(p['intercept'])  # (1,)
-        mean_  = np.array(p['scaler_mean'])   # (11,)
-        scale_ = np.array(p['scaler_scale'])  # (11,)
-        return coef, intercept, mean_, scale_, p['features']
+        return coef, intercept, p['features']
 
-    def _scale(X_arr, mean_, scale_):
-        """StandardScaler puro numpy."""
-        return (X_arr - mean_) / scale_
+    def _predict_proba(X_arr, coef, intercept):
+        """Regressão Logística — sigmoid puro numpy (sem scaler)."""
+        z = X_arr @ coef.T + intercept   # (n, 1)
+        return 1.0 / (1.0 + np.exp(-z)) # prob da classe 1 (Vulnerável)
 
-    def _predict_proba(X_scaled, coef, intercept):
-        """Regressão Logística — sigmoid puro numpy."""
-        z = X_scaled @ coef.T + intercept   # (n, 1)
-        return 1.0 / (1.0 + np.exp(-z))     # (n, 1)
-
-    def _load_base():
-        """Carrega dataset, filtra Desired_Savings > 0 → 19.888 registros.
-        Tenta parquet primeiro; cai para CSV se pyarrow não estiver instalado."""
-        try:
-            df = pd.read_parquet(DATA_PATH)
-        except Exception:
-            csv_path = DATA_PATH.replace('.parquet', '.csv')
-            df = pd.read_csv(csv_path)
-        df = df[df['Desired_Savings'] > 0].reset_index(drop=True)
+    def _build_ratios(df):
+        """Constrói as 9 features de rácios a partir do DataFrame bruto."""
+        df = df.copy()
+        df['Rent_Ratio']       = df['Rent']       / df['Income']
+        df['Healthcare_Ratio'] = df['Healthcare'] / df['Income']
+        df['Education_Ratio']  = df['Education']  / df['Income']
+        df['Groceries_Ratio']  = df['Groceries']  / df['Income']
+        df['Transport_Ratio']  = df['Transport']  / df['Income']
+        df['Utilities_Ratio']  = df['Utilities']  / df['Income']
+        df['Insurance_Ratio']  = df['Insurance']  / df['Income']
         return df
 
-    def _nivel(p):
-        if p < 0.30: return 'Baixo'
-        if p < 0.60: return 'Médio'
+    def _load_base():
+        """Carrega dataset, filtra Desired_Savings > 0 → ~19.888 registros.
+        Tenta parquet primeiro; cai para CSV se engine indisponível."""
+        try:
+            df = pd.read_parquet(DATA_PATH, engine='fastparquet')
+        except Exception:
+            try:
+                df = pd.read_parquet(DATA_PATH)
+            except Exception:
+                df = pd.read_csv(DATA_PATH.replace('.parquet', '.csv'))
+        df = df[df['Desired_Savings'] > 0].reset_index(drop=True)
+        return _build_ratios(df)
+
+    def _nivel_seguro(p_seguro):
+        """Classifica o perfil de crédito pelo p(Seguro) = 1 - p(Vulnerável)."""
+        if p_seguro >= 0.70: return 'Alta confiança'
+        if p_seguro >= 0.40: return 'Moderada confiança'
+        return 'Baixa confiança'
+
+    def _nivel(p_vuln):
+        """Mantido para compatibilidade com a demo (usa p(Vulnerável))."""
+        if p_vuln < 0.30: return 'Baixo'
+        if p_vuln < 0.60: return 'Médio'
         return 'Alto'
 
     def _result_card(label, value, color):
@@ -1955,7 +2434,7 @@ def register_ml_callbacks(app):
     )
     def run_demo(n_clicks, threshold):
         try:
-            coef, intercept, mean_, scale_, features = _load_model()
+            coef, intercept, features = _load_model()
             df = _load_base()
 
             faltando = [c for c in features if c not in df.columns]
@@ -1964,16 +2443,17 @@ def register_ml_callbacks(app):
                 err = html.Div(f'Colunas ausentes: {", ".join(faltando)}', style={'color': ERROR})
                 return empty, empty, err, {}
 
-            X       = df[features].fillna(0).to_numpy(dtype=float)
-            X_sc    = _scale(X, mean_, scale_)
-            probs   = _predict_proba(X_sc, coef, intercept).ravel()
-            df['prob_risco'] = probs
+            X             = df[features].fillna(0).to_numpy(dtype=float)
+            prob_vuln     = _predict_proba(X, coef, intercept).ravel()  # p(Vulnerável)
+            df['prob_seguro'] = 1.0 - prob_vuln
+            df['prob_risco']  = prob_vuln
 
         except Exception as exc:
             empty = go.Figure()
             err = html.Div(f'Erro ao carregar o modelo: {exc}', style={'color': ERROR, 'fontSize': '14px'})
             return empty, empty, err, {}
 
+        # threshold aplicado sobre p(Vulnerável): acima do limiar → Vulnerável
         df['classif'] = (df['prob_risco'] >= threshold).astype(int)
         df['nivel']   = df['prob_risco'].apply(_nivel)
 
@@ -1982,7 +2462,7 @@ def register_ml_callbacks(app):
         pie = px.pie(
             classif_labels.rename('Classificação').to_frame(),
             names='Classificação',
-            title=f'Seguro × Vulnerável (threshold = {threshold:.2f})',
+            title=f'Seguro × Vulnerável (threshold vulnerável = {threshold:.2f})',
             color='Classificação',
             color_discrete_map={'Seguro': SUCCESS, 'Vulnerável': ERROR},
             hole=0.4,
@@ -1992,14 +2472,23 @@ def register_ml_callbacks(app):
                           showlegend=False, font_family='Segoe UI',
                           margin=dict(t=50, b=20, l=20, r=20))
 
-        # Histograma
+        # Histograma de p(Vulnerável)
         hist = px.histogram(df, x='prob_risco', nbins=50,
-                            title='Distribuição de Probabilidades de Risco',
-                            labels={'prob_risco': 'Probabilidade de Vulnerabilidade'},
-                            color_discrete_sequence=['#594CA3'])
-        hist.add_vline(x=threshold, line_dash='dash', line_color=ERROR,
-                       annotation_text=f'Threshold ({threshold:.2f})',
-                       annotation_position='top right')
+                            title='Distribuição da Probabilidade de Ser Vulnerável',
+                            labels={'prob_risco': 'Probabilidade de Ser Vulnerável'},
+                            color_discrete_sequence=[ERROR])
+        hist.add_vline(x=threshold, line_dash='dash', line_color=ROXO, line_width=2,
+                       annotation_text=f'Threshold: {threshold:.2f}',
+                       annotation_position='top right',
+                       annotation_font=dict(color=ROXO, size=11))
+        hist.add_vline(x=0.70, line_dash='dot', line_color=ERROR,
+                       annotation_text='Alta (≥ 70%)',
+                       annotation_position='top left',
+                       annotation_font=dict(color=ERROR, size=10))
+        hist.add_vline(x=0.40, line_dash='dot', line_color='#f59e0b',
+                       annotation_text='Moderada (≥ 40%)',
+                       annotation_position='top left',
+                       annotation_font=dict(color='#f59e0b', size=10))
         hist.update_layout(plot_bgcolor='white', paper_bgcolor='white',
                            yaxis_title='Nº de Clientes', font_family='Segoe UI',
                            margin=dict(t=50, b=40, l=40, r=20))
@@ -2009,20 +2498,20 @@ def register_ml_callbacks(app):
         total    = len(df)
         seguros  = (df['classif'] == 0).sum()
         vuln     = (df['classif'] == 1).sum()
-        alto_df  = df[df['nivel'] == 'Alto']
-        exp_alto = alto_df['Loan_Repayment'].sum() if 'Loan_Repayment' in alto_df.columns else 0
+        # clientes com baixa probabilidade de vulnerabilidade (< 0.40) = alta confiança de segurança
+        alta_seg = (df['prob_risco'] < 0.40).sum()
 
         cards = html.Div([
-            _result_card('Registros Analisados', f'{total:,}',       ROXO),
-            _result_card('Seguros',              f'{seguros:,}',      SUCCESS),
-            _result_card('Vulneráveis',          f'{vuln:,}',         ERROR),
-            _result_card('Exposição Alto Risco', f'R$ {exp_alto:,.0f}', '#f59e0b'),
+            _result_card('Registros Analisados',    f'{total:,}',    ROXO),
+            _result_card('Seguros',                 f'{seguros:,}',  SUCCESS),
+            _result_card('Vulneráveis',             f'{vuln:,}',     ERROR),
+            _result_card('Baixa Vulnerab. (< 40%)', f'{alta_seg:,}', '#6366f1'),
         ], style={'display': 'grid', 'gridTemplateColumns': 'repeat(auto-fit, minmax(180px, 1fr))',
                   'gap': '14px', 'marginBottom': '20px'})
 
         return (
             pie, hist, cards,
-            df[['prob_risco', 'classif', 'nivel']].to_json(orient='records', force_ascii=False),
+            df[['prob_seguro', 'prob_risco', 'classif', 'nivel']].to_json(orient='records', force_ascii=False),
         )
 
     # ── Botões +/− dos campos de previsão individual (pattern matching) ─────────
@@ -2065,123 +2554,107 @@ def register_ml_callbacks(app):
         vals = {
             'Income':            field_map.get('income', 0),
             'Age':               field_map.get('age', 0),
-            'Dependents':        field_map.get('dependents', 0),
-            'Loan_Repayment':    field_map.get('loan', 0),
-            'Eating_Out':        field_map.get('eating-out', 0),
-            'Entertainment':     field_map.get('entertainment', 0),
-            'Healthcare':        field_map.get('healthcare', 0),
-            'Rent':              field_map.get('rent', 0),
-            'Groceries':         field_map.get('groceries', 0),
-            'Disposable_Income': field_map.get('disposable', 0),
-            'Desired_Savings':   field_map.get('savings', 0),
+            'Dependents':  field_map.get('dependents', 0),
+            'Healthcare':  field_map.get('healthcare', 0),
+            'Rent':        field_map.get('rent', 0),
+            'Groceries':   field_map.get('groceries', 0),
+            'Education':   field_map.get('education', 0),
+            'Transport':   field_map.get('transport', 0),
+            'Utilities':   field_map.get('utilities', 0),
+            'Insurance':   field_map.get('insurance', 0),
         }
-        pot_savings = field_map.get('pot-savings', 0)
 
-        if vals['Income'] <= 0:
+        inc = vals['Income']
+        if inc <= 0:
             return html.Div('⚠️ Renda deve ser maior que zero.', style={'color': ERROR, 'fontWeight': '600'})
 
         try:
-            coef, intercept, mean_, scale_, features = _load_model()
+            coef, intercept, features = _load_model()
         except Exception as exc:
             return html.Div(f'Erro ao carregar modelo: {exc}', style={'color': ERROR})
 
-        X_row  = np.array([[vals[f] for f in features]], dtype=float)
-        X_sc   = _scale(X_row, mean_, scale_)
-        prob   = float(_predict_proba(X_sc, coef, intercept)[0, 0])
-        nivel = _nivel(prob)
+        # Construir rácios — exactamente as 9 features do modelo
+        ratios = {
+            'Age':               vals['Age'],
+            'Dependents':        vals['Dependents'],
+            'Rent_Ratio':        vals['Rent']       / inc,
+            'Healthcare_Ratio':  vals['Healthcare'] / inc,
+            'Education_Ratio':   vals['Education']  / inc,
+            'Groceries_Ratio':   vals['Groceries']  / inc,
+            'Transport_Ratio':   vals['Transport']  / inc,
+            'Utilities_Ratio':   vals['Utilities']  / inc,
+            'Insurance_Ratio':   vals['Insurance']  / inc,
+        }
 
-        # Indicadores derivados
-        inc       = vals['Income']
-        perc_emp  = vals['Loan_Repayment'] / inc
-        perc_ness = (vals['Eating_Out'] + vals['Entertainment']) / inc
-        buffer    = (vals['Disposable_Income'] - vals['Desired_Savings']) / inc
-        perc_pot  = pot_savings / inc if inc > 0 else 0
+        X_row     = np.array([[ratios[f] for f in features]], dtype=float)
+        prob_vuln = float(_predict_proba(X_row, coef, intercept)[0, 0])
 
-        conds = [
-            ('C1 — Endividamento elevado',        perc_emp  > 0.10,  f'{perc_emp*100:.1f}%',   'Empréstimo > 10% da renda'),
-            ('C2 — Buffer de emergência baixo',   buffer    < 0.10,  f'{buffer*100:.1f}%',     'Buffer < 10% da renda'),
-            ('C3 — Gastos não essenciais altos',  perc_ness > 0.085, f'{perc_ness*100:.1f}%',  'Não essenciais > 8,5% da renda'),
-            ('C4 — Potencial de economia alto',   perc_pot  > 0.08,  f'R$ {pot_savings:,.0f}', 'Potencial > 8% da renda'),
-        ]
-        risk_count = sum(1 for _, ativo, *_ in conds if ativo)
+        # Classificação por confiança — thresholds sobre p(Vulnerável)
+        if prob_vuln >= 0.70:
+            perfil_label = 'ALTA CONFIANÇA DE VULNERABILIDADE'
+            gauge_color  = ERROR
+            perfil_desc  = (f'{prob_vuln*100:.1f}% de probabilidade de ser Vulnerável. '
+                            'Crédito não recomendado sem garantias adicionais.')
+        elif prob_vuln >= 0.40:
+            perfil_label = 'MODERADA CONFIANÇA DE VULNERABILIDADE'
+            gauge_color  = '#f59e0b'
+            perfil_desc  = (f'{prob_vuln*100:.1f}% de probabilidade de ser Vulnerável. '
+                            'Análise complementar recomendada antes de conceder crédito.')
+        else:
+            perfil_label = 'BAIXA CONFIANÇA DE VULNERABILIDADE'
+            gauge_color  = SUCCESS
+            perfil_desc  = (f'{prob_vuln*100:.1f}% de probabilidade de ser Vulnerável. '
+                            'Perfil favorável — candidato elegível para concessão de crédito.')
 
-        # Gauge de probabilidade
-        gauge_color = ERROR if nivel == 'Alto' else ('#f59e0b' if nivel == 'Médio' else SUCCESS)
+        # Classificação binária (threshold 0,50 padrão)
+        is_vuln     = prob_vuln >= 0.50
+        class_color = ERROR if is_vuln else SUCCESS
+        class_label = 'VULNERÁVEL' if is_vuln else 'SEGURO'
+
+        # Gauge de p(Vulnerável)
         gauge = go.Figure(go.Indicator(
             mode='gauge+number',
-            value=round(prob * 100, 1),
+            value=round(prob_vuln * 100, 1),
             number={'suffix': '%', 'font': {'size': 32, 'color': gauge_color}},
             gauge={
                 'axis': {'range': [0, 100], 'ticksuffix': '%'},
                 'bar': {'color': gauge_color},
                 'steps': [
-                    {'range': [0, 30],   'color': 'rgba(46,125,50,0.15)'},
-                    {'range': [30, 60],  'color': 'rgba(245,158,11,0.15)'},
-                    {'range': [60, 100], 'color': 'rgba(229,75,75,0.15)'},
+                    {'range': [0,  40],  'color': 'rgba(46,125,50,0.15)'},
+                    {'range': [40, 70],  'color': 'rgba(245,158,11,0.15)'},
+                    {'range': [70, 100], 'color': 'rgba(229,75,75,0.15)'},
                 ],
-                'threshold': {'line': {'color': gauge_color, 'width': 3}, 'value': prob * 100},
+                'threshold': {'line': {'color': gauge_color, 'width': 3}, 'value': prob_vuln * 100},
             },
-            title={'text': 'Probabilidade de Vulnerabilidade', 'font': {'size': 14, 'color': TEXT_MUTED}},
+            title={'text': 'Probabilidade de Ser Vulnerável', 'font': {'size': 14, 'color': TEXT_MUTED}},
         ))
         gauge.update_layout(
             height=260, paper_bgcolor='white', font_family='Segoe UI',
             margin=dict(t=40, b=10, l=20, r=20),
         )
 
-        # Badge de nível
-        badge_colors = {'Baixo': SUCCESS, 'Médio': '#f59e0b', 'Alto': ERROR}
-        badge_txt    = {'Baixo': 'RISCO BAIXO', 'Médio': 'RISCO MÉDIO', 'Alto': 'RISCO ALTO'}
-
-        nivel_badge = html.Span(badge_txt[nivel], style={
-            'backgroundColor': badge_colors[nivel], 'color': BRANCO,
-            'borderRadius': '6px', 'padding': '6px 18px',
-            'fontSize': '13px', 'fontWeight': '800', 'letterSpacing': '1px',
-            'display': 'inline-block',
-        })
-
-        # Linha de condições ativas
-        cond_items = []
-        for nome, ativo, valor, descr in conds:
-            cor   = ERROR if ativo else SUCCESS
-            icone = '✗' if ativo else '✓'
-            cond_items.append(html.Div([
-                html.Div([
-                    html.Span(icone, style={'color': cor, 'fontWeight': '800', 'marginRight': '8px', 'fontSize': '16px'}),
-                    html.Span(nome, style={'fontWeight': '600', 'fontSize': '13px', 'color': TEXT_MAIN}),
-                ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '4px'}),
-                html.Div([
-                    html.Span('Valor: ', style={'color': TEXT_MUTED, 'fontSize': '12px'}),
-                    html.Span(valor, style={'fontWeight': '700', 'color': cor, 'fontSize': '12px'}),
-                    html.Span(f'  ·  {descr}', style={'color': TEXT_MUTED, 'fontSize': '12px'}),
-                ]),
-            ], style={
-                'padding': '12px 16px', 'borderRadius': '8px', 'marginBottom': '8px',
-                'backgroundColor': f'rgba(229,75,75,0.05)' if ativo else f'rgba(46,125,50,0.05)',
-                'borderLeft': f'3px solid {cor}',
-            }))
-
-        # ── Classificação binária pelas condições (risk_score >= 2) ─────────────
-        is_vulnerable  = risk_count >= 2
-        bin_color      = ERROR if is_vulnerable else SUCCESS
-        bin_label      = 'VULNERÁVEL' if is_vulnerable else 'SEGURO'
-        bin_descr      = (
-            f'{risk_count} de 4 condições de risco ativas — score ≥ 2 → Vulnerável.'
-            if is_vulnerable else
-            f'{risk_count} de 4 condições de risco ativas — score < 2 → Seguro.'
-        )
-        binary_badge = html.Span(bin_label, style={
-            'backgroundColor': bin_color, 'color': BRANCO,
-            'borderRadius': '6px', 'padding': '6px 18px',
-            'fontSize': '13px', 'fontWeight': '800', 'letterSpacing': '1px',
-            'display': 'inline-block',
-        })
-
-        # ── Textos explicativos ───────────────────────────────────────────────
-        nivel_desc = {
-            'Alto':  f'O modelo detectou padrão de vulnerabilidade elevado na combinação das 11 variáveis. (< 30% = Baixo · 30–60% = Médio · > 60% = Alto)',
-            'Médio': f'Indicadores com pontos de atenção. Monitoramento preventivo indicado. (< 30% = Baixo · 30–60% = Médio · > 60% = Alto)',
-            'Baixo': f'Baixa propensão a vulnerabilidade com base nas 11 variáveis analisadas. (< 30% = Baixo · 30–60% = Médio · > 60% = Alto)',
-        }
+        # Tabela de rácios usados pelo modelo
+        ratio_rows = [
+            ('Age',            f'{ratios["Age"]:.0f}',                    'anos'),
+            ('Dependents',     f'{ratios["Dependents"]:.0f}',             'pessoas'),
+            ('Rent_Ratio',     f'{ratios["Rent_Ratio"]*100:.1f}%',        'Aluguel / Renda'),
+            ('Healthcare_Ratio',f'{ratios["Healthcare_Ratio"]*100:.1f}%', 'Saúde / Renda'),
+            ('Education_Ratio', f'{ratios["Education_Ratio"]*100:.1f}%',  'Educação / Renda'),
+            ('Groceries_Ratio', f'{ratios["Groceries_Ratio"]*100:.1f}%',  'Supermercado / Renda'),
+            ('Transport_Ratio', f'{ratios["Transport_Ratio"]*100:.1f}%',  'Transporte / Renda'),
+            ('Utilities_Ratio', f'{ratios["Utilities_Ratio"]*100:.1f}%',  'Utilidades / Renda'),
+            ('Insurance_Ratio', f'{ratios["Insurance_Ratio"]*100:.1f}%',  'Seguro / Renda'),
+        ]
+        ratio_items = [
+            html.Div([
+                html.Span(feat, style={'fontWeight': '600', 'fontSize': '12px',
+                                       'color': ROXO, 'minWidth': '150px', 'display': 'inline-block'}),
+                html.Span(val,  style={'fontWeight': '700', 'fontSize': '13px',
+                                       'color': TEXT_MAIN, 'marginRight': '8px'}),
+                html.Span(desc, style={'color': TEXT_MUTED, 'fontSize': '11px'}),
+            ], style={'padding': '6px 0', 'borderBottom': f'1px solid {BORDER}'})
+            for feat, val, desc in ratio_rows
+        ]
 
         _sec_label = lambda txt: html.Div(txt, style={
             'fontSize': '11px', 'color': TEXT_MUTED, 'fontWeight': '700',
@@ -2189,43 +2662,45 @@ def register_ml_callbacks(app):
         })
 
         return html.Div([
-            # ── Painel superior: dois resultados lado a lado ──────────────────
             html.Div([
-
-                # Bloco 1 — Regressão Logística (probabilidade)
+                # Bloco 1 — Gauge p(Vulnerável)
                 html.Div([
-                    _sec_label('Predição do Modelo — Regressão Logística'),
+                    _sec_label('Resultado — Regressão Logística'),
                     html.Div(dcc.Graph(figure=gauge, config={'displayModeBar': False})),
-                    html.Div(nivel_badge, style={'textAlign': 'center', 'marginTop': '8px'}),
-                    html.P(f'{prob*100:.1f}% de probabilidade de vulnerabilidade. {nivel_desc[nivel]}',
+                    html.Div(html.Span(perfil_label, style={
+                        'backgroundColor': gauge_color, 'color': BRANCO,
+                        'borderRadius': '6px', 'padding': '6px 18px',
+                        'fontSize': '12px', 'fontWeight': '800', 'letterSpacing': '0.8px',
+                        'display': 'inline-block',
+                    }), style={'textAlign': 'center', 'marginTop': '8px'}),
+                    html.P(perfil_desc,
                            style={'color': TEXT_MUTED, 'fontSize': '12px', 'lineHeight': '1.6',
-                                  'marginTop': '10px', 'marginBottom': '0'}),
+                                  'marginTop': '10px', 'marginBottom': '8px'}),
+                    html.Div([
+                        html.Span('Classificação (threshold 0,50): ',
+                                  style={'color': TEXT_MUTED, 'fontSize': '12px'}),
+                        html.Span(class_label, style={
+                            'backgroundColor': class_color, 'color': BRANCO,
+                            'borderRadius': '4px', 'padding': '2px 10px',
+                            'fontSize': '12px', 'fontWeight': '800',
+                        }),
+                    ]),
                 ], style={
                     'flex': '1', 'minWidth': '280px',
                     'backgroundColor': BG_PAGE, 'padding': '20px', 'borderRadius': '10px',
                     'border': f'1px solid {BORDER}',
                 }),
 
-                # Bloco 2 — Condições (classificação binária)
+                # Bloco 2 — Rácios inseridos no modelo
                 html.Div([
-                    _sec_label('Classificação por Condições de Risco (C1–C4)'),
-                    html.Div(binary_badge, style={'marginBottom': '10px'}),
-                    html.P(bin_descr, style={
-                        'color': TEXT_MUTED, 'fontSize': '13px', 'lineHeight': '1.6',
-                        'marginBottom': '16px',
-                    }),
-                    html.Div(
-                        'Score = nº de condições ativas. Score ≥ 2 → Vulnerável. '
-                        'Critério usado para definir o target de treinamento do modelo.',
-                        style={'fontSize': '11px', 'color': TEXT_MUTED, 'fontStyle': 'italic',
-                               'marginBottom': '16px'},
-                    ),
-                    *cond_items,
+                    _sec_label('Features Fornecidas ao Modelo (9 variáveis)'),
+                    html.P('Valores convertidos em rácios sobre a renda antes de entrar no modelo:',
+                           style={'color': TEXT_MUTED, 'fontSize': '12px', 'marginBottom': '12px'}),
+                    *ratio_items,
                 ], style={
                     'flex': '1', 'minWidth': '280px',
                     'backgroundColor': BG_PAGE, 'padding': '20px', 'borderRadius': '10px',
                     'border': f'1px solid {BORDER}',
                 }),
-
             ], style={'display': 'flex', 'gap': '20px', 'flexWrap': 'wrap'}),
         ])
