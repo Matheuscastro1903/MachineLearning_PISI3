@@ -214,7 +214,7 @@ def _gerar_boxplot(df):
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
 
     fig = px.box(
-        df_clean, x='City_Tier_Label', y='Rent',
+        df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True), x='City_Tier_Label', y='Rent',
         color='City_Tier_Label',
         color_discrete_sequence=SEQ_COLORS,
         category_orders={'City_Tier_Label': TIERS},
@@ -226,7 +226,7 @@ def _gerar_boxplot(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=False,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
@@ -240,7 +240,7 @@ def _gerar_violin(df):
     df_clean['City_Tier_Label'] = df_clean['City_Tier'].astype(str).str.replace('_', ' ')
 
     fig = px.violin(
-        df_clean, x='City_Tier_Label', y='Rent',
+        df_clean.sample(min(300, len(df_clean)), random_state=42).reset_index(drop=True), x='City_Tier_Label', y='Rent',
         color='City_Tier_Label',
         color_discrete_sequence=SEQ_COLORS,
         box=True, points=False,
@@ -253,7 +253,7 @@ def _gerar_violin(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=False,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
@@ -293,7 +293,7 @@ def _gerar_ratio(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=False,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False, tickformat='.0%')
@@ -327,7 +327,7 @@ def _gerar_stats(df):
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
         font=dict(color=TEXT_MAIN, family="Segoe UI, sans-serif"),
         margin=dict(t=50, b=40, l=40, r=20), hovermode="x unified",
-        title_font=dict(size=16, color=COLOR_ACCENT),
+        title=dict(font=dict(size=16, color=COLOR_ACCENT)),
         showlegend=True,
         xaxis=dict(showgrid=False, showline=True, linecolor=BORDER_COLOR),
         yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.1)', zeroline=False)
