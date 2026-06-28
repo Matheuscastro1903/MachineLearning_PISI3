@@ -215,7 +215,7 @@ def _build_static_charts():
         # ── 1. Matriz de Correlação ───────────────────────────────────────
         corr = X.corr().round(2)
         corr_fig = px.imshow(
-            corr_matrix.values,
+            corr.values,
             x=feat_labels, y=feat_labels,
             text_auto='.2f',
             color_continuous_scale='RdYlGn',
