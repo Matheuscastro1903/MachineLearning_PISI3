@@ -1,74 +1,269 @@
-# MachineLearning_PISI3
+<div align="center">
 
-<p align="center">
-	<img src="dash/assets/logo.png" alt="ThinkMoney" width="120" />
-</p>
+<img src="dash/assets/logo.png" alt="ThinkMoney" width="130" />
 
-<p align="center">
-	Projeto de análise de dados e Machine Learning com foco em finanças pessoais, construído com Dash, Pandas, Plotly e Scikit-Learn.
-</p>
+# 💸 ThinkMoney — Inteligência de Finanças Pessoais
 
-<p align="center">
-	<a href="https://dashboard-pisi3-grupo-5.onrender.com/">Acessar dashboard publicado</a>
-	&nbsp;|&nbsp;
-	<a href="#como-executar">Executar localmente</a>
-	&nbsp;|&nbsp;
-	<a href="#funcionalidades-do-dashboard">Ver funcionalidades</a>
-</p>
+**Da base de dados financeira à decisão: exploração interativa, diagnóstico de vulnerabilidade e segmentação de clientes em um só lugar.**
 
-> O repositório reúne o dashboard principal ThinkMoney, análises exploratórias em notebooks, modelos treinados e scripts de apoio para preparação de dados.
+🚀 **[Acessar o dashboard online](https://louquinhosbr-new-thinkmoney-dashboard.hf.space/)**
 
-## Visão geral
+`Python 3.10+` · `Dash` · `Plotly` · `scikit-learn`
 
-O objetivo do projeto é transformar uma base de dados financeira em uma experiência interativa de exploração e previsão. A aplicação permite navegar entre:
+<a href="#-visão-geral">Visão geral</a> ·
+<a href="#️-o-dashboard">Dashboard</a> ·
+<a href="#-análises-exploratórias-eda">EDA</a> ·
+<a href="#-modelos-de-machine-learning">Modelos</a> ·
+<a href="#️-como-executar">Executar</a>
 
-- uma página inicial de apresentação do projeto;
-- uma área de documentação técnica do dataset;
-- uma seção de EDA com filtros globais e análises temáticas;
-- uma seção de Machine Learning para estimar vulnerabilidade financeira.
+</div>
 
-Além do dashboard, o repositório também contém notebooks de estudo e artefatos de modelagem usados no processo analítico.
+---
 
-## Dashboard publicado
+## 📌 Visão geral
 
-O dashboard está disponível em produção neste link:
+O **ThinkMoney** é um projeto de Ciência de Dados que transforma uma base financeira de **20.000 perfis** em uma experiência completa de análise e previsão. O objetivo é responder, com dados, a três perguntas centrais:
 
-- [dashboard-pisi3-grupo-5.onrender.com](https://dashboard-pisi3-grupo-5.onrender.com/)
+1. **O que os dados revelam?** — uma camada robusta de análise exploratória (EDA) sobre renda, despesas, moradia, consumo e poupança.
+2. **Quem está em risco?** — um modelo de **classificação** que identifica usuários em situação de **vulnerabilidade financeira**.
+3. **Quem são os clientes?** — um modelo de **clusterização** que agrupa os usuários em **personas** acionáveis para produto e negócio.
 
-Essa é a forma mais rápida de acessar a versão já publicada da aplicação.
+Tudo isso é entregue em um **dashboard web interativo** (Dash + Plotly), publicado em produção, e sustentado por notebooks de pesquisa e artefatos de modelo versionados no repositório.
 
-## Principais funcionalidades
+> O repositório reúne o dashboard principal, as análises exploratórias em notebooks, os modelos treinados (classificação e clusterização) e os scripts de apoio à preparação de dados.
 
-- Dashboard web em Dash com navegação interna por botões.
-- Página de documentação com resumo estatístico e descrição das variáveis.
-- EDA com filtros por cidade, ocupação e faixa de renda.
-- Seções analíticas sobre desperdício financeiro, transporte, moradia, comportamento e vulnerabilidade.
-- Modelo de Machine Learning com ajuste de sensibilidade por threshold.
-- Script utilitário para converter o dataset de CSV para Parquet.
+---
 
-## Estrutura do projeto
+## 🖥️ O Dashboard
+
+A aplicação principal vive em [`dash/app.py`](dash/app.py) e está publicada em:
+
+### 👉 **[louquinhosbr-new-thinkmoney-dashboard.hf.space](https://louquinhosbr-new-thinkmoney-dashboard.hf.space/)**
+
+É a forma mais rápida de explorar o projeto — sem instalar nada.
+
+### Navegação
+
+| Seção | O que oferece |
+|---|---|
+| 🏠 **Home** | Apresentação do projeto e identidade visual ThinkMoney. |
+| 📚 **Documentação** | Descrição completa do dataset, com cards para variáveis categóricas e numéricas e resumo estatístico da base. |
+| 📊 **EDA** | Análise exploratória com **filtros globais** por *City Tier*, *Occupation* e faixa de renda. |
+| 🤖 **Machine Learning** | Predição de vulnerabilidade financeira com **threshold ajustável** e visualização em cards, gráfico de pizza e histograma. |
+
+### Subseções da EDA no dashboard
+
+| Código | Tema |
+|---|---|
+| `5.1` | **Waste Ratio** — desperdício financeiro |
+| `5.2` | **Transporte** |
+| `5.3` | **Condicionantes** da saúde financeira |
+| `5.4` | **Moradia** |
+| `5.5` | **Cansaço / Dopamina** — comportamento de consumo |
+
+
+---
+
+## 🗂️ O Dataset
+
+Base financeira tabular, **sem valores nulos** (auditoria de qualidade confirmou 0% de ausências), com:
+
+<div align="center">
+
+| 📈 Registros | 🧮 Colunas | 🔢 Tipos | 🎯 Domínio |
+|:---:|:---:|:---:|:---:|
+| **20.000** | **27** | Numérico + Categórico | Finanças pessoais |
+
+</div>
+
+As variáveis estão organizadas em quatro grupos (detalhe completo em [`dataset/dicionario.txt`](dataset/dicionario.txt)):
+
+**1. Renda e demografia** — `Income`, `Age`, `Dependents`, `Occupation`, `City_Tier`
+
+**2. Despesas mensais** — `Rent`, `Loan_Repayment`, `Insurance`, `Groceries`, `Transport`, `Eating_Out`, `Entertainment`, `Utilities`, `Healthcare`, `Education`, `Miscellaneous`
+
+**3. Metas e indicadores** — `Desired_Savings_Percentage`, `Desired_Savings`, `Disposable_Income`
+
+**4. Economia potencial** — `Potential_Savings_*` (Groceries, Transport, Eating_Out, Entertainment, Utilities, Healthcare, Education, Miscellaneous)
+
+### Features derivadas
+
+O pré-processamento em [`dash/data.py`](dash/data.py) cria variáveis essenciais para as análises e modelos, normalizadas pela renda para eliminar efeito de escala:
+
+`Total_Expenses` · `Savings_Rate` · `Waste_Ratio` · `Age_Group` · `Age_Group_5` · `Fixed_Costs` · `Fixed_Ratio` · `Disposable_Income` · `Rent_Income_Ratio`
+
+---
+
+## 🔍 Análises Exploratórias (EDA)
+
+A pasta [`analises/`](analises/) concentra **11 investigações temáticas** em notebooks, cada uma atacando uma dimensão do problema financeiro:
+
+| Análise | Foco |
+|---|---|
+| `analise-anomalias-financeiras` | Detecção de outliers e padrões atípicos de gasto |
+| `analise-ciclo-de-vida-e-perfil-financeiro` | Como o perfil financeiro evolui com a idade |
+| `analise-city-tier` | Impacto do porte da cidade nas finanças |
+| `analise-custo-de-vida-e-city-tier` | Custo de vida cruzado com *City Tier* |
+| `analise-gastos-e-poupanca` | Relação entre despesas e capacidade de poupar |
+| `analise-independencia-de-variaveis-na-boa-gestao` | Quais variáveis explicam boa gestão financeira |
+| `analise-insurance-age` | Comportamento de seguros por faixa etária |
+| `analise-poupanca` | Viabilidade de metas e potencial de economia |
+| `analise-saude-financeira-comprometimento-renda` | Comprometimento de renda e saúde financeira |
+| `analise-simulacao-migracao` | Simulação de migração entre perfis |
+| `analises-dopamina` | Consumo por impulso (cidade, idade e ocupação) |
+
+### 💡 Principais insights
+
+- **Base sólida:** 20.000 registros, **0% de valores nulos**.
+- **Metas realistas:** apenas **0,56%** da base possui metas de poupança financeiramente inviáveis.
+- **Renda × Renda disponível:** correlação positiva forte (**0,88**) — os gastos essenciais escalam proporcionalmente aos ganhos.
+- **Maior oportunidade de economia:** a categoria **Supermercado (Groceries)** lidera o potencial médio de economia.
+- **Consumo por idade:** gastos com *Eating Out* são uniformes entre faixas etárias, mas o grupo **18–25 anos** tem a maior média.
+- **Outliers relevantes:** **1.257** em aluguel (concentrados em cidades Tier 2) e **1.326** em alimentação fora (liderados por *Professionals*).
+- **Para modelagem:** `Rent` e `Groceries` são os melhores preditores de renda; `Loan_Repayment` e `Insurance` são os principais detratores da saúde financeira; há multicolinearidade entre as colunas `Potential_Savings_*` (justifica PCA / seleção de features).
+
+---
+
+## 🤖 Modelos de Machine Learning
+
+O projeto entrega **dois modelos complementares**, ambos em [`modelos/`](modelos/):
+
+### 🎯 1. Classificação — Identificação de Clientes Seguros (Baixo Risco de Crédito)
+
+> **Objetivo:** encontrar os usuários com **baixo risco de crédito** — os clientes **`Seguro`** — separando-os dos que estão em situação de vulnerabilidade financeira. É por isso que toda a avaliação do modelo (Precisão, Recall, F1 e a análise SHAP) é orientada à classe `Seguro`: o interesse do negócio é identificar, com confiança, quem é um bom pagador / cliente saudável.
+
+Modelo **supervisionado** que classifica cada usuário em **`Seguro`** (baixo risco) ou **`Vulnerável`** (alto risco). O rótulo `Vulnerable` é construído por regra de negócio: o usuário é considerado **vulnerável** quando atende a **pelo menos 2 de 4 critérios** de risco — caso contrário, é classificado como **seguro**:
+
+- comprometimento elevado com empréstimos (`Loan_Repayment / Income > 10%`);
+- alto gasto com itens não-essenciais (`(Eating_Out + Entertainment) / Income > 8,5%`);
+- margem disponível insuficiente após a meta de poupança (`< 10%` da renda);
+- alto potencial de economia em supermercado (`Potential_Savings_Groceries / Income > 8%`).
+
+As *features* são percentuais normalizados pela renda (`Rent_Ratio`, `Healthcare_Ratio`, `Education_Ratio`, `Groceries_Ratio`, `Transport_Ratio`, `Utilities_Ratio`, `Insurance_Ratio`) somados a `Age` e `Dependents`, sem variáveis que vazem o alvo (*data leakage*).
+
+**Benchmark de algoritmos** (notebook [`modelo_classificacao_regressao.ipynb`](modelos/mecanismo_vulnerabilidade/modelo_classificacao_regressao.ipynb)) — todos com pesos de classe ajustados para o desbalanceamento:
+
+| Algoritmo | AUC-ROC |
+|---|:---:|
+| **Regressão Logística** | **0,653** |
+| Gradient Boosting | 0,651 |
+| SVM | 0,643 |
+| CatBoost | 0,631 |
+| Random Forest | 0,621 |
+| XGBoost | 0,614 |
+
+A **Regressão Logística** é o modelo de referência da solução, pela combinação de desempenho competitivo e alta interpretabilidade. A análise no notebook é complementada por:
+
+- 📊 **SHAP** — importância das features para a classe `Seguro` e visão **global** (beeswarm), além de **curva de Pareto** das variáveis mais influentes;
+- 🔁 **Cross-validation** estratificado (5 folds), com foco na classe `Seguro`: Recall médio **0,794** e Precisão média **0,827**;
+- 🧩 **Matriz de confusão** e **tabela comparativa** dos seis modelos, ordenada por F1-Score;
+- 🎯 **Segmentação de clientes** por probabilidade de ser `Seguro` (perfis de alta, moderada e baixa confiança).
+
+### 🧩 2. Clusterização — Personas de Clientes (K-Means++)
+
+Modelo **não supervisionado** que segmenta os usuários em **personas** de negócio. Todo o pipeline está no notebook [`clusterizacao_personas_final.Ipynb`](modelos/modelo_clusterizacao/clusterizacao_personas_final.Ipynb), estruturado em três blocos (preparação dos dados, exploração com DBSCAN e o modelo final K-Means++):
+
+- **Feature engineering:** 11 variáveis proporcionais à renda (*ratio features*), como `Rent_pct`, `Loan_Repayment_pct`, `Disposable_pct`, `Desired_Savings_pct`, `Gap_Poupanca`, `Gastos_Consumo_pct`, `Gastos_Fixos_pct`, `City_Tier_enc`, `Age` e `Dependents` — eliminando a dominância do `Income`;
+- **Normalização:** `RobustScaler` (robusto a outliers, baseado em mediana e IQR);
+- **Redução de dimensionalidade:** `PCA` preservando **85% da variância**;
+- **Seleção de *k*:** método do cotovelo e *Silhouette Score* para K de 2 a 10, seguidos de uma **comparação entre 5 algoritmos** (K-Means Random, K-Means++, Agglomerative Ward, Agglomerative Complete e Gaussian Mixture) para K ∈ {3, 4, 5};
+- **Modelo final:** **K-Means++ com K=5** (`n_init=10`), escolhido pela melhor combinação de coesão e distribuição entre clusters. Métricas: **Silhouette ≈ 0,222** e **Davies-Bouldin ≈ 1,504**. Artefato salvo em [`modelo_kmeans_personas.pkl`](modelos/modelo_clusterizacao/modelo_kmeans_personas.pkl).
+
+**As 5 personas identificadas:**
+
+| Cluster | Volume | Perfil financeiro |
+|:---:|:---:|---|
+| **0** | 9,7% | **Alto comprometimento** em centros Tier 1 — menor renda disponível (7,8%); aluguel + empréstimos consomem ~44% da renda; único com gap de poupança positivo (não atinge a meta). |
+| **1** | 40,3% | **Financeiramente saudável** (Tier 2/3) — maior renda disponível (33,9%), sem empréstimos relevantes, poupa bem acima da meta (gap −25,4%). |
+| **2** | 19,0% | **Urbano sem endividamento** (Tier 1) — aluguel é 30% da renda e o principal fator de pressão, mas mantém folga moderada (22%). |
+| **3** | 20,3% | **Endividamento elevado** em cidades médias/pequenas — empréstimos (13,8% da renda) reduzem a renda disponível para 19,1%, apesar do aluguel baixo. |
+| **4** | 10,7% | **Maior disciplina financeira** — maior ambição de poupança (meta de 17,4%) e capacidade de cumpri-la (gap −11%), com boa renda disponível (28,4%). |
+
+Relatório completo das personas em [`relatorio_personas_kmeans.txt`](modelos/modelo_clusterizacao/relatorio_personas_kmeans.txt). O notebook ainda inclui interpretabilidade com **árvore de decisão surrogate**, **SHAP** (beeswarm e barras) e **radar charts** por persona.
+
+---
+
+## 🧱 Stack utilizada
+
+<div align="center">
+
+`Python` · `Dash` · `Flask` · `Plotly` · `Pandas` · `NumPy` · `scikit-learn` · `XGBoost` · `CatBoost` · `SHAP` · `Joblib` · `Gunicorn`
+
+</div>
+
+As dependências do dashboard estão em [`dash/requirements.txt`](dash/requirements.txt).
+
+---
+
+## ▶️ Como executar
+
+### 1. Pré-requisitos
+
+- Python **3.10+**
+- `pip` atualizado
+
+### 2. Clonar e criar o ambiente virtual
+
+```bash
+git clone <url-do-repositorio>
+cd MachineLearning_PISI3
+```
+
+**macOS / Linux:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows (PowerShell):**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 3. Instalar dependências
+
+```bash
+pip install -r dash/requirements.txt
+```
+
+### 4. Rodar o dashboard
+
+> ⚠️ Execute **a partir da raiz do repositório** — a aplicação usa imports relativos ao diretório `dash`.
+
+```bash
+python dash/app.py
+```
+
+Acesse o endereço exibido no terminal, normalmente **http://127.0.0.1:8050/**.
+
+---
+
+## 📁 Estrutura do projeto
 
 <details>
-<summary>Ver a organização dos arquivos</summary>
+<summary><b>Ver a organização dos arquivos</b></summary>
 
 ```text
 MachineLearning_PISI3/
 ├── README.md
 ├── LICENSE
-├── dataset/
+├── Dockerfile
+├── dataset/                          # Base de dados e dicionário
 │   ├── data.csv
+│   ├── data.parquet
 │   └── dicionario.txt
-├── dash/
-│   ├── app.py
-│   ├── data.py
+├── dash/                             # 🖥️ Aplicação web (Dash)
+│   ├── app.py                        #   ponto de entrada
+│   ├── data.py                       #   carga e features derivadas
 │   ├── requirements.txt
-│   ├── assets/
-│   │   └── style.css
-│   ├── components/
-│   ├── pages/
-│   ├── sections/
-│   └── dataset/
-├── analises/
+│   ├── assets/                       #   CSS e arquivos estáticos
+│   ├── components/                   #   layout e home
+│   ├── pages/                        #   home, documentação, análise, ml
+│   └── sections/                     #   seções temáticas da EDA
+├── analises/                         # 🔍 11 notebooks de EDA temática
 │   ├── analise-anomalias-financeiras/
 │   ├── analise-ciclo-de-vida-e-perfil-financeiro/
 │   ├── analise-city-tier/
@@ -80,159 +275,43 @@ MachineLearning_PISI3/
 │   ├── analise-saude-financeira-comprometimento-renda/
 │   ├── analise-simulacao-migracao/
 │   └── analises-dopamina/
-├── modelos/
-│   ├── modelo_clusterizacao/
-│   └── modelo_joao_vulnerabilidade/
+├── modelos/                          # 🤖 Modelagem
+│   ├── mecanismo_vulnerabilidade/    #   classificação (benchmark + SHAP)
+│   ├── modelo_clusterizacao/         #   K-Means++ de personas
+│   ├── modelo_previsao_vulnerabilidade/
+│   └── modelo_joao_vulnerabilidade/  #   modelo servido no dashboard
 └── scripts/
-    └── converter_para_parquet.py
+    └── converter_para_parquet.py     # CSV → Parquet
 ```
 
 </details>
 
-## Stack utilizada
+---
 
-- Python
-- Dash
-- Flask
-- Pandas
-- NumPy
-- Plotly
-- Scikit-Learn
-- Joblib
+## 🛠️ Script auxiliar
 
-As dependências do dashboard estão listadas em `dash/requirements.txt`.
+[`scripts/converter_para_parquet.py`](scripts/converter_para_parquet.py) converte `dataset/data.csv` em `dataset/data.parquet`, otimizando a leitura e a experimentação local.
 
-## Resumo rápido
+---
 
-| Item | Detalhe |
-|---|---|
-| App principal | `dash/app.py` |
-| Página inicial | Home do ThinkMoney |
-| Áreas principais | Home, Documentação, EDA e Machine Learning |
-| Dataset | Base financeira tabular com 20.000 registros |
-| Deploy | Render |
+## 📝 Observações de uso
 
-## Dataset
+- Rode sempre a partir da **raiz** do repositório (`python dash/app.py`).
+- A seção de ML do dashboard depende dos artefatos `.pkl` (modelo + scaler) presentes na pasta do modelo servido.
+- Ao substituir o dataset, revise a lógica de EDA e dos modelos para garantir que as colunas esperadas continuem existindo.
 
-O projeto trabalha com uma base financeira tabular que, pela documentação interna do dashboard, possui:
+---
 
-- 20.000 registros;
-- 27 colunas;
-- variáveis numéricas e categóricas;
-- campos relacionados a renda, despesas mensais, economia potencial e características demográficas.
+## 📜 Licença
 
-Entre as variáveis descritas na aplicação estão:
+Distribuído sob a licença descrita em [`LICENSE`](LICENSE).
 
-- Income
-- Age
-- Dependents
-- Rent
-- Loan_Repayment
-- Groceries
-- Transport
-- Eating_Out
-- Entertainment
-- Insurance
-- Utilities
-- Healthcare
-- Education
-- Miscellaneous
-- Occupation
-- City_Tier
+<div align="center">
 
-O processamento em `dash/data.py` cria colunas derivadas importantes para as análises, como Total_Expenses, Savings_Rate, Waste_Ratio, Age_Group, Age_Group_5, Fixed_Costs, Fixed_Ratio, Disposable_Income e Rent_Income_Ratio.
+---
 
-## Como executar
+**Projeto acadêmico — PISI3 · Grupo 5**
 
-### 1. Pré-requisitos
+*Feito com dados, Python e ☕*
 
-- Python 3.10 ou superior
-- pip atualizado
-
-### 2. Criar e ativar um ambiente virtual
-
-No Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 3. Instalar as dependências
-
-```powershell
-pip install -r dash\requirements.txt
-```
-
-### 4. Executar a aplicação
-
-A aplicação principal fica em `dash/app.py`. Execute a partir da raiz do projeto com:
-
-```powershell
-python dash\app.py
-```
-
-Depois disso, abra o endereço exibido no terminal, normalmente `http://127.0.0.1:8050/`.
-
-## Navegação do dashboard
-
-- Home: apresentação inicial do projeto.
-- Documentação: descrição das variáveis e resumo da base.
-- EDA: filtros e análises temáticas sobre perfil e finanças.
-- Machine Learning: previsão de vulnerabilidade financeira com threshold ajustável.
-
-## Funcionalidades do dashboard
-
-### Home
-
-A tela inicial apresenta a identidade visual do projeto ThinkMoney e direciona o usuário para a análise exploratória ou para o modelo preditivo.
-
-### Documentação
-
-A página de documentação detalha o dataset com cards explicativos para variáveis categóricas e numéricas, além de um resumo geral da base.
-
-### EDA
-
-A seção de análise exploratória permite filtrar a base por:
-
-- City Tier;
-- Occupation;
-- faixa de renda.
-
-As subseções disponíveis são:
-
-- 5.1 - Waste Ratio
-- 5.2 - Transporte
-- 5.3 - Condicionantes
-- 5.4 - Moradia
-- 5.5 - Cansaço/Dopamina
-- 5.6 - M1 (Vulnerabilidade)
-
-### Machine Learning
-
-A seção 5.6 executa uma predição de vulnerabilidade financeira com um modelo treinado. O usuário pode ajustar o threshold para tornar a classificação mais conservadora ou mais permissiva, e visualizar os resultados em cards, gráfico de pizza e histograma.
-
-## Artefatos de modelo
-
-O módulo de vulnerabilidade financeira espera os seguintes arquivos dentro de `modelos/modelo_joao_vulnerabilidade/`:
-
-- `modelo_vulnerabilidade.pkl`
-- `scaler.pkl`
-
-Sem esses dois artefatos, a seção de ML não consegue executar a predição.
-
-## Script auxiliar
-
-O arquivo `scripts/converter_para_parquet.py` converte `dataset/data.csv` para `dataset/data.parquet`, o que pode ser útil para otimização de leitura e experimentação local.
-
-## Organização das análises
-
-A pasta `analises/` concentra notebooks de exploração e investigação temática do problema. Já a pasta `modelos/` reúne os materiais de modelagem, incluindo experimentos de clusterização e a solução usada para a previsão de vulnerabilidade.
-
-## Observações de uso
-
-- O projeto foi organizado para ser executado a partir da raiz do repositório usando `python dash\app.py`.
-- A aplicação utiliza imports relativos ao diretório `dash`, então executar o arquivo de entrada a partir de outro local pode exigir ajustes no caminho.
-- Se o dataset for substituído, a lógica de EDA e do modelo deve ser revisada para garantir que as colunas esperadas continuem existindo.
-
-
+</div>
