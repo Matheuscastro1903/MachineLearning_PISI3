@@ -161,25 +161,25 @@ A **Regressão Logística** é o modelo de referência da solução, pela combin
 
 ### 🧩 2. Clusterização — Personas de Clientes (K-Means++)
 
-Modelo **não supervisionado** que segmenta os usuários em **personas** de negócio. Todo o pipeline está no notebook [`clusterizacao_personas_final.Ipynb`](modelos/modelo_clusterizacao/clusterizacao_personas_final.Ipynb), estruturado em três blocos (preparação dos dados, exploração com DBSCAN e o modelo final K-Means++):
+Modelo **não supervisionado** que segmenta os usuários em **personas** de negócio. Todo o pipeline está no notebook [`clusterizacao_personas_final.Ipynb`](modelos/modelo_clusterizacao/clusterizacao_personas_final.Ipynb), organizado em blocos: preparação dos dados, exploração com **DBSCAN** e o modelo final **K-Means++** (com uma comparação direta entre os dois ao final).
 
-- **Feature engineering:** 11 variáveis proporcionais à renda (*ratio features*), como `Rent_pct`, `Loan_Repayment_pct`, `Disposable_pct`, `Desired_Savings_pct`, `Gap_Poupanca`, `Gastos_Consumo_pct`, `Gastos_Fixos_pct`, `City_Tier_enc`, `Age` e `Dependents` — eliminando a dominância do `Income`;
+- **Feature engineering:** 10 variáveis proporcionais à renda (*ratio features*) — `Rent_pct`, `Loan_Repayment_pct`, `Disposable_pct`, `Desired_Savings_pct`, `Gap_Poupanca`, `Gastos_Consumo_pct`, `Gastos_Fixos_pct`, `City_Tier_enc`, `Age` e `Dependents` — eliminando a dominância do `Income`;
 - **Normalização:** `RobustScaler` (robusto a outliers, baseado em mediana e IQR);
-- **Redução de dimensionalidade:** `PCA` preservando **85% da variância**;
-- **Seleção de *k*:** método do cotovelo e *Silhouette Score* para K de 2 a 10, seguidos de uma **comparação entre 5 algoritmos** (K-Means Random, K-Means++, Agglomerative Ward, Agglomerative Complete e Gaussian Mixture) para K ∈ {3, 4, 5};
-- **Modelo final:** **K-Means++ com K=5** (`n_init=10`), escolhido pela melhor combinação de coesão e distribuição entre clusters. Métricas: **Silhouette ≈ 0,222** e **Davies-Bouldin ≈ 1,504**. Artefato salvo em [`modelo_kmeans_personas.pkl`](modelos/modelo_clusterizacao/modelo_kmeans_personas.pkl).
+- **Redução de dimensionalidade:** `PCA` configurado para reter **≥85% da variância** (`n_components=0.85`), resultando em ~92% na prática (6 componentes);
+- **Seleção de *k*:** método do cotovelo e *Silhouette Score* para K de 2 a 10, com *Silhouette Diagram* detalhado para K ∈ {3, 4, 5};
+- **Modelo final:** **K-Means++ com K=5**, escolhido pela melhor combinação de coesão e leitura de negócio. Métricas: **Silhouette ≈ 0,222** e **Davies-Bouldin ≈ 1,504**. O pipeline completo (scaler, PCA, modelo, personas e métricas) é salvo em [`modelo_kmeans_personas.pkl`](modelos/modelo_clusterizacao/modelo_kmeans_personas.pkl).
 
-**As 5 personas identificadas:**
+**As 5 personas identificadas** (nomeadas sob a ótica de risco de crédito):
 
-| Cluster | Volume | Perfil financeiro |
-|:---:|:---:|---|
-| **0** | 9,7% | **Alto comprometimento** em centros Tier 1 — menor renda disponível (7,8%); aluguel + empréstimos consomem ~44% da renda; único com gap de poupança positivo (não atinge a meta). |
-| **1** | 40,3% | **Financeiramente saudável** (Tier 2/3) — maior renda disponível (33,9%), sem empréstimos relevantes, poupa bem acima da meta (gap −25,4%). |
-| **2** | 19,0% | **Urbano sem endividamento** (Tier 1) — aluguel é 30% da renda e o principal fator de pressão, mas mantém folga moderada (22%). |
-| **3** | 20,3% | **Endividamento elevado** em cidades médias/pequenas — empréstimos (13,8% da renda) reduzem a renda disponível para 19,1%, apesar do aluguel baixo. |
-| **4** | 10,7% | **Maior disciplina financeira** — maior ambição de poupança (meta de 17,4%) e capacidade de cumpri-la (gap −11%), com boa renda disponível (28,4%). |
+| Persona | Volume | Perfil e risco de crédito |
+|---|:---:|---|
+| 🔴 **0 — O Estrangulado Financeiro** | 9,7% | Renda livre quase nula (7,8%) somada a dívidas altas, em centros Tier 1. **Risco altíssimo** — crédito novo tende à inadimplência. |
+| 🟢 **1 — O Poupador Natural** | 40,3% | Maior renda disponível (33,9%), sem dívidas relevantes, poupa naturalmente. **Risco baixíssimo (prime)** — aprovação com limites altos. |
+| 🟡 **2 — O Refém do Aluguel** | 19,0% | Aluguel ≈30% da renda (Tier 1) e quase nenhuma dívida. **Risco moderado** — bons pagadores, mas com despesa fixa pesada. |
+| 🟠 **3 — O Endividado** | 20,3% | Empréstimos (13,8% da renda) corroem o orçamento, apesar do custo de vida menor. **Risco moderado a alto (alavancado).** |
+| 🔵 **4 — O Estrategista** | 10,7% | Meta de poupança alta (17,4%) e disciplina para cumpri-la. **Risco baixíssimo (super prime)** — usa crédito de forma planejada. |
 
-Relatório completo das personas em [`relatorio_personas_kmeans.txt`](modelos/modelo_clusterizacao/relatorio_personas_kmeans.txt). O notebook ainda inclui interpretabilidade com **árvore de decisão surrogate**, **SHAP** (beeswarm e barras) e **radar charts** por persona.
+Análise completa das personas, com justificativa SHAP e recomendações de concessão de crédito, em [`analise_credito_personas.md`](modelos/modelo_clusterizacao/analise_credito_personas.md). A interpretabilidade no notebook usa um **surrogate Random Forest** com **SHAP** (`TreeExplainer`), curva de **Pareto** e **radar charts** por persona.
 
 ---
 
